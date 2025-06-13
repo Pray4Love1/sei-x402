@@ -16,106 +16,93 @@ import express from "express";
 import { createWalletClient, http, publicActions } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
+// Native Sei support
+import {
+  PaymentPayloadSchema,
+  PaymentRequirementsSchema,
+  settle as seiSettle,
+} from "@x402/sei";
+import {
+  createClientSeiTestnet,
+  createSignerSeiTestnet,
+} from "@x402/sei/client";
 
 dotenv.config();
 
-// Configuration
+/* -------------------------------------------------------------------------- */
+/* Environment Setup */
+/* -------------------------------------------------------------------------- */
 const PORT = process.env.PORT || "4022";
 
-// Validate required environment variables
 if (!process.env.EVM_PRIVATE_KEY) {
   console.error("❌ EVM_PRIVATE_KEY environment variable is required");
   process.exit(1);
 }
-
 if (!process.env.SVM_PRIVATE_KEY) {
   console.error("❌ SVM_PRIVATE_KEY environment variable is required");
   process.exit(1);
 }
 
-// Initialize the EVM account from private key
+/* -------------------------------------------------------------------------- */
+/* Account Setup */
+/* -------------------------------------------------------------------------- */
+// EVM
 const evmAccount = privateKeyToAccount(
   process.env.EVM_PRIVATE_KEY as `0x${string}`,
 );
-console.info(`EVM Facilitator account: ${evmAccount.address}`);
+console.info("✅ EVM Facilitator:", evmAccount.address);
 
-// Initialize the SVM account from private key
+// SVM
 const svmAccount = await createKeyPairSignerFromBytes(
   base58.decode(process.env.SVM_PRIVATE_KEY as string),
 );
-console.info(`SVM Facilitator account: ${svmAccount.address}`);
+console.info("✅ SVM Facilitator:", svmAccount.address);
 
-// Create a Viem client with both wallet and public capabilities
+// Viem EVM client (Base Sepolia)
 const viemClient = createWalletClient({
   account: evmAccount,
   chain: baseSepolia,
   transport: http(),
 }).extend(publicActions);
 
-// Initialize the x402 Facilitator with EVM and SVM support
-
+/* -------------------------------------------------------------------------- */
+/* Facilitator Setup */
+/* -------------------------------------------------------------------------- */
 const evmSigner = toFacilitatorEvmSigner({
-  getCode: (args: { address: `0x${string}` }) => viemClient.getCode(args),
+  getCode: ({ address }) => viemClient.getCode({ address }),
   address: evmAccount.address,
-  readContract: (args: {
-    address: `0x${string}`;
-    abi: readonly unknown[];
-    functionName: string;
-    args?: readonly unknown[];
-  }) =>
+  readContract: ({ address, abi, functionName, args }) =>
     viemClient.readContract({
-      ...args,
-      args: args.args || [],
+      address,
+      abi,
+      functionName,
+      args: args || [],
     }),
-  verifyTypedData: (args: {
-    address: `0x${string}`;
-    domain: Record<string, unknown>;
-    types: Record<string, unknown>;
-    primaryType: string;
-    message: Record<string, unknown>;
-    signature: `0x${string}`;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  }) => viemClient.verifyTypedData(args as any),
-  writeContract: (args: {
-    address: `0x${string}`;
-    abi: readonly unknown[];
-    functionName: string;
-    args: readonly unknown[];
-  }) =>
+  verifyTypedData: (args) =>
+    viemClient.verifyTypedData(args as any),
+  writeContract: ({ address, abi, functionName, args }) =>
     viemClient.writeContract({
-      ...args,
-      args: args.args || [],
+      address,
+      abi,
+      functionName,
+      args: args || [],
     }),
-  sendTransaction: (args: { to: `0x${string}`; data: `0x${string}` }) =>
-    viemClient.sendTransaction(args),
-  waitForTransactionReceipt: (args: { hash: `0x${string}` }) =>
-    viemClient.waitForTransactionReceipt(args),
+  sendTransaction: ({ to, data }) =>
+    viemClient.sendTransaction({ to, data }),
+  waitForTransactionReceipt: ({ hash }) =>
+    viemClient.waitForTransactionReceipt({ hash }),
 });
 
-// Facilitator can now handle all Solana networks with automatic RPC creation
 const svmSigner = toFacilitatorSvmSigner(svmAccount);
 
 const facilitator = new x402Facilitator()
-  .onBeforeVerify(async (context) => {
-    console.log("Before verify", context);
-  })
-  .onAfterVerify(async (context) => {
-    console.log("After verify", context);
-  })
-  .onVerifyFailure(async (context) => {
-    console.log("Verify failure", context);
-  })
-  .onBeforeSettle(async (context) => {
-    console.log("Before settle", context);
-  })
-  .onAfterSettle(async (context) => {
-    console.log("After settle", context);
-  })
-  .onSettleFailure(async (context) => {
-    console.log("Settle failure", context);
-  });
+  .onBeforeVerify(async (ctx) => console.log("Before verify", ctx))
+  .onAfterVerify(async (ctx) => console.log("After verify", ctx))
+  .onVerifyFailure(async (ctx) => console.log("Verify failure", ctx))
+  .onBeforeSettle(async (ctx) => console.log("Before settle", ctx))
+  .onAfterSettle(async (ctx) => console.log("After settle", ctx))
+  .onSettleFailure(async (ctx) => console.log("Settle failure", ctx));
 
-// Register EVM and SVM schemes using the new register helpers
 registerExactEvmScheme(facilitator, {
   signer: evmSigner,
   networks: "eip155:84532", // Base Sepolia
@@ -123,114 +110,122 @@ registerExactEvmScheme(facilitator, {
 });
 registerExactSvmScheme(facilitator, {
   signer: svmSigner,
-  networks: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", // Devnet
+  networks: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", // Solana devnet
 });
 
-// Initialize Express app
+// Optional: Bootstrap Sei client if needed for other ops
+// createClientSeiTestnet();
+
+/* -------------------------------------------------------------------------- */
+/* Express Server */
+/* -------------------------------------------------------------------------- */
 const app = express();
 app.use(express.json());
 
-/**
- * POST /verify
- * Verify a payment against requirements
- *
- * Note: Payment tracking and bazaar discovery are handled by lifecycle hooks
- */
+/* -------------------------- GET /verify -------------------------- */
+app.get("/verify", (_, res) => {
+  res.json({
+    endpoint: "/verify",
+    method: "POST",
+    body: {
+      paymentPayload: "PaymentPayload",
+      paymentRequirements: "PaymentRequirements",
+    },
+  });
+});
+
+/* -------------------------- POST /verify -------------------------- */
 app.post("/verify", async (req, res) => {
   try {
     const { paymentPayload, paymentRequirements } = req.body as {
       paymentPayload: PaymentPayload;
       paymentRequirements: PaymentRequirements;
     };
-
     if (!paymentPayload || !paymentRequirements) {
       return res.status(400).json({
         error: "Missing paymentPayload or paymentRequirements",
       });
     }
-
-    // Hooks will automatically:
-    // - Track verified payment (onAfterVerify)
-    // - Extract and catalog discovery info (onAfterVerify)
     const response: VerifyResponse = await facilitator.verify(
       paymentPayload,
       paymentRequirements,
     );
-
     res.json(response);
-  } catch (error) {
-    console.error("Verify error:", error);
+  } catch (err) {
+    console.error("Verify error:", err);
     res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
+      error: err instanceof Error ? err.message : "Unknown error",
     });
   }
 });
 
-/**
- * POST /settle
- * Settle a payment on-chain
- *
- * Note: Verification validation and cleanup are handled by lifecycle hooks
- */
+/* -------------------------- POST /settle -------------------------- */
 app.post("/settle", async (req, res) => {
   try {
-    const { paymentPayload, paymentRequirements } = req.body;
-
+    const { paymentPayload, paymentRequirements } = req.body as {
+      paymentPayload: PaymentPayload;
+      paymentRequirements: PaymentRequirements;
+    };
     if (!paymentPayload || !paymentRequirements) {
       return res.status(400).json({
         error: "Missing paymentPayload or paymentRequirements",
       });
     }
 
-    // Hooks will automatically:
-    // - Validate payment was verified (onBeforeSettle - will abort if not)
-    // - Check verification timeout (onBeforeSettle)
-    // - Clean up tracking (onAfterSettle / onSettleFailure)
+    // Native Sei handling
+    if (paymentPayload.network === "sei-testnet") {
+      console.log("Routing to native Sei settle");
+      const signer = createSignerSeiTestnet(
+        process.env.EVM_PRIVATE_KEY as `0x${string}`,
+      );
+      const parsedRequirements = PaymentRequirementsSchema.parse(paymentRequirements);
+      const parsedPayload = PaymentPayloadSchema.parse(paymentPayload);
+      const response = await seiSettle(
+        signer,
+        parsedPayload,
+        parsedRequirements,
+      );
+      return res.json(response);
+    }
+
+    // Default: facilitator-based settlement (EVM / SVM)
     const response: SettleResponse = await facilitator.settle(
-      paymentPayload as PaymentPayload,
-      paymentRequirements as PaymentRequirements,
+      paymentPayload,
+      paymentRequirements,
     );
-
     res.json(response);
-  } catch (error) {
-    console.error("Settle error:", error);
-
-    // Check if this was an abort from hook
-    if (
-      error instanceof Error &&
-      error.message.includes("Settlement aborted:")
-    ) {
-      // Return a proper SettleResponse instead of 500 error
+  } catch (err) {
+    console.error("Settle error:", err);
+    if (err instanceof Error && err.message.includes("Settlement aborted:")) {
       return res.json({
         success: false,
-        errorReason: error.message.replace("Settlement aborted: ", ""),
+        errorReason: err.message.replace("Settlement aborted: ", ""),
         network: req.body?.paymentPayload?.network || "unknown",
       } as SettleResponse);
     }
-
     res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
+      error: err instanceof Error ? err.message : "Unknown error",
     });
   }
 });
 
-/**
- * GET /supported
- * Get supported payment kinds and extensions
- */
-app.get("/supported", async (req, res) => {
-  try {
-    const response = facilitator.getSupported();
-    res.json(response);
-  } catch (error) {
-    console.error("Supported error:", error);
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
+/* -------------------------- GET /supported -------------------------- */
+app.get("/supported", async (_, res) => {
+  const base = facilitator.getSupported();
+  res.json({
+    ...base,
+    kinds: [
+      ...(base.kinds || []),
+      {
+        x402Version: 1,
+        scheme: "exact",
+        network: "sei-testnet",
+      },
+    ],
+  });
 });
 
-// Start the server
+/* -------------------------- Start Server -------------------------- */
 app.listen(parseInt(PORT), () => {
-  console.log("Facilitator listening");
+  console.log(`🚀 Facilitator listening on port ${PORT}`);
 });

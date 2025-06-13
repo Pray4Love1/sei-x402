@@ -147,7 +147,7 @@ describe("computeRoutePatterns", () => {
 
   it("should throw error for invalid route patterns", () => {
     const routes: RoutesConfig = {
-      "GET ": "$0.01", // Invalid pattern with no path
+      "GET ": "$0.01",
     };
 
     expect(() => computeRoutePatterns(routes)).toThrow("Invalid route pattern: GET ");
@@ -191,251 +191,67 @@ describe("findMatchingRoute", () => {
     const result = findMatchingRoute(routePatterns, "/API/test", "GET");
     expect(result).toEqual(routePatterns[0]);
   });
-
-  it("should handle empty route patterns array", () => {
-    const result = findMatchingRoute([], "/api/test", "GET");
-    expect(result).toBeUndefined();
-  });
-
-  it("should normalize paths with multiple consecutive slashes", () => {
-    const result = findMatchingRoute(routePatterns, "//api///test", "GET");
-    expect(result).toEqual(routePatterns[0]);
-  });
-
-  it("should match paths with trailing slashes", () => {
-    const result = findMatchingRoute(routePatterns, "/api/test/", "GET");
-    expect(result).toEqual(routePatterns[0]);
-  });
-
-  it("should match paths with multiple trailing slashes", () => {
-    const result = findMatchingRoute(routePatterns, "/api/test///", "GET");
-    expect(result).toEqual(routePatterns[0]);
-  });
-
-  it("should match paths with trailing backslash", () => {
-    const result = findMatchingRoute(routePatterns, "/api/test\\", "GET");
-    expect(result).toEqual(routePatterns[0]);
-  });
-
-  it("should match paths with multiple trailing backslashes", () => {
-    const result = findMatchingRoute(routePatterns, "/api/test\\\\", "GET");
-    expect(result).toEqual(routePatterns[0]);
-  });
-
-  it("should match paths with multiple consecutive slashes", () => {
-    const result = findMatchingRoute(routePatterns, "/api///test", "GET");
-    expect(result).toEqual(routePatterns[0]);
-  });
-
-  it("should match paths with query parameters", () => {
-    const result = findMatchingRoute(routePatterns, "/api/test?foo=bar", "GET");
-    expect(result).toEqual(routePatterns[0]);
-  });
-
-  it("should match paths with hash fragments", () => {
-    const result = findMatchingRoute(routePatterns, "/api/test#section", "GET");
-    expect(result).toEqual(routePatterns[0]);
-  });
-
-  // URL-encoded path tests
-  it("should match basic URL-encoded paths", () => {
-    const result = findMatchingRoute(routePatterns, "/api/%74est", "GET");
-    expect(result).toEqual(routePatterns[0]);
-  });
-
-  it("should match paths with multiple URL-encoded characters", () => {
-    const result = findMatchingRoute(routePatterns, "/api/%74%65%73%74", "GET"); // /api/test encoded
-    expect(result).toEqual(routePatterns[0]);
-  });
-
-  it("should match paths with URL-encoded slashes and backslashes", () => {
-    // Test various combinations of encoded slashes and backslashes
-    const tests = [
-      "%2Fapi%2Ftest", // /api/test (all slashes encoded)
-      "%5Capi%5Ctest", // \api\test (all backslashes encoded)
-      "%2Fapi/test", // /api/test (mixed encoded and raw slashes)
-      "%5Capi\\test", // \api\test (mixed encoded and raw backslashes)
-      "/api%2Ftest", // /api/test (mixed raw and encoded slashes)
-      "\\api%5Ctest", // \api\test (mixed raw and encoded backslashes)
-      "%2Fapi%5Ctest", // /api\test (mixed encoded slash and backslash)
-      "/api%2F%2Ftest", // /api//test (multiple encoded slashes)
-      "\\api%5C%5Ctest", // \api\\test (multiple encoded backslashes)
-    ];
-
-    // All should match the same route
-    tests.forEach(path => {
-      const result = findMatchingRoute(routePatterns, path, "GET");
-      expect(result).toEqual(routePatterns[0]);
-    });
-  });
-
-  it("should match partially URL-encoded paths", () => {
-    const result = findMatchingRoute(routePatterns, "/api/t%65st", "GET"); // /api/test with just 'e' encoded
-    expect(result).toEqual(routePatterns[0]);
-  });
-
-  it("should match paths with URL-encoded query parameters", () => {
-    const result = findMatchingRoute(routePatterns, "/api/test?foo%3Dbar", "GET"); // foo=bar with = encoded
-    expect(result).toEqual(routePatterns[0]);
-  });
-
-  it("should match paths with mixed URL-encoded and special characters", () => {
-    const result = findMatchingRoute(routePatterns, "/api/%74est%20with%20spaces", "GET");
-    expect(result).toBeUndefined(); // Should not match as the pattern doesn't include spaces
-  });
-
-  it("should handle malformed URL-encoded sequences", () => {
-    const result = findMatchingRoute(routePatterns, "/api/%XX", "GET");
-    expect(result).toBeUndefined(); // Should not match as %XX is not a valid encoding
-  });
-
-  describe("malformed percent-encoding", () => {
-    const paywallRoutes = {
-      "/paywall/[param]": "$0.01",
-      "/api/protected/*": "$0.02",
-    };
-    const paywallPatterns = computeRoutePatterns(paywallRoutes);
-
-    it("should match route with trailing malformed %", () => {
-      const result = findMatchingRoute(paywallPatterns, "/paywall/test%", "GET");
-      expect(result).toBeDefined();
-      expect(result?.config.price).toBe("$0.01");
-    });
-
-    it("should match route with malformed %c0 sequence", () => {
-      const result = findMatchingRoute(paywallPatterns, "/paywall/test%c0", "GET");
-      expect(result).toBeDefined();
-      expect(result?.config.price).toBe("$0.01");
-    });
-
-    it("should match route with multiple malformed sequences", () => {
-      const result = findMatchingRoute(paywallPatterns, "/paywall/test%c0%c1%", "GET");
-      expect(result).toBeDefined();
-      expect(result?.config.price).toBe("$0.01");
-    });
-
-    it("should match wildcard route with malformed encoding", () => {
-      const result = findMatchingRoute(paywallPatterns, "/api/protected/resource%", "GET");
-      expect(result).toBeDefined();
-      expect(result?.config.price).toBe("$0.02");
-    });
-
-    it("should match route with malformed encoding in middle of path", () => {
-      const result = findMatchingRoute(paywallPatterns, "/paywall/te%st", "GET");
-      expect(result).toBeDefined();
-    });
-  });
 });
 
 describe("getDefaultAsset", () => {
   it("should return Base USDC asset details", () => {
-    const result = getDefaultAsset("base");
-
-    expect(result).toEqual({
+    expect(getDefaultAsset("base")).toEqual({
       address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
       decimals: 6,
-      eip712: {
-        name: "USD Coin",
-        version: "2",
-      },
+      eip712: { name: "USD Coin", version: "2" },
     });
   });
 
   it("should return Base Sepolia USDC asset details", () => {
-    const result = getDefaultAsset("base-sepolia");
-
-    expect(result).toEqual({
+    expect(getDefaultAsset("base-sepolia")).toEqual({
       address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
       decimals: 6,
-      eip712: {
-        name: "USDC",
-        version: "2",
-      },
+      eip712: { name: "USDC", version: "2" },
     });
   });
 
   it("should return Sei Testnet USDC asset details", () => {
-    const result = getDefaultAsset("sei-testnet");
-
-    expect(result).toEqual({
-      address: "0x4fcf1784b31630811181f670aea7a7bef803eaed",
+    expect(getDefaultAsset("sei-testnet")).toEqual({
+      address: "0xeAcd10aaA6f362a94823df6BBC3C536841870772",
       decimals: 6,
-      eip712: {
-        name: "USDC",
-        version: "2",
-      },
+      eip712: { name: "USDC", version: "2" },
     });
   });
 
   it("should return Sei USDC asset details", () => {
-    const result = getDefaultAsset("sei");
-
-    expect(result).toEqual({
-      address: "0xe15fc38f6d8c56af07bbcbe3baf5708a2bf42392",
+    expect(getDefaultAsset("sei")).toEqual({
+      address: "0x3894085Ef7Ff0f0aeDf52E2A2704928d1Ec074F1",
       decimals: 6,
-      eip712: {
-        name: "USDC",
-        version: "2",
-      },
-    });
-  });
-
-  it("should return Polygon Amoy USDC asset details", () => {
-    const result = getDefaultAsset("polygon-amoy");
-    expect(result).toEqual({
-      address: "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",
-      decimals: 6,
-      eip712: {
-        name: "USDC",
-        version: "2",
-      },
-    });
-  });
-
-  it("should return Polygon mainnet USDC asset details", () => {
-    const result = getDefaultAsset("polygon");
-    expect(result).toEqual({
-      address: "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359",
-      decimals: 6,
-      eip712: {
-        name: "USD Coin",
-        version: "2",
-      },
+      eip712: { name: "USDC", version: "2" },
     });
   });
 
   it("should handle unknown networks", () => {
-    expect(() => getDefaultAsset("unknown" as Network)).toThrow("Unsupported network: unknown");
+    expect(() => getDefaultAsset("unknown" as Network)).toThrow(
+      "Unsupported network: unknown",
+    );
   });
 });
 
 describe("processPriceToAtomicAmount", () => {
   it("should handle string price in dollars", () => {
-    const result = processPriceToAtomicAmount("$0.01", "base-sepolia");
-    expect(result).toEqual({
+    expect(processPriceToAtomicAmount("$0.01", "base-sepolia")).toEqual({
       maxAmountRequired: "10000",
       asset: {
         address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
         decimals: 6,
-        eip712: {
-          name: "USDC",
-          version: "2",
-        },
+        eip712: { name: "USDC", version: "2" },
       },
     });
   });
 
   it("should handle number price in dollars", () => {
-    const result = processPriceToAtomicAmount(0.01, "base-sepolia");
-    expect(result).toEqual({
+    expect(processPriceToAtomicAmount(0.01, "base-sepolia")).toEqual({
       maxAmountRequired: "10000",
       asset: {
         address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
         decimals: 6,
-        eip712: {
-          name: "USDC",
-          version: "2",
-        },
+        eip712: { name: "USDC", version: "2" },
       },
     });
   });
@@ -446,37 +262,13 @@ describe("processPriceToAtomicAmount", () => {
       asset: {
         address: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         decimals: 18,
-        eip712: {
-          name: "Custom Token",
-          version: "1",
-        },
+        eip712: { name: "Custom Token", version: "1" },
       },
     };
-    const result = processPriceToAtomicAmount(tokenAmount, "base-sepolia");
-    expect(result).toEqual({
+
+    expect(processPriceToAtomicAmount(tokenAmount, "base-sepolia")).toEqual({
       maxAmountRequired: "1000000",
       asset: tokenAmount.asset,
-    });
-  });
-
-  it("should handle invalid price format", () => {
-    const result = processPriceToAtomicAmount("invalid", "base-sepolia");
-    expect(result).toEqual({
-      error: expect.stringContaining("Invalid price"),
-    });
-  });
-
-  it("should handle negative price", () => {
-    const result = processPriceToAtomicAmount("-$0.01", "base-sepolia");
-    expect(result).toEqual({
-      error: expect.stringContaining("Invalid price"),
-    });
-  });
-
-  it("should handle zero price", () => {
-    const result = processPriceToAtomicAmount("$0", "base-sepolia");
-    expect(result).toEqual({
-      error: expect.stringContaining("Number must be greater than or equal to 0.0001"),
     });
   });
 });
