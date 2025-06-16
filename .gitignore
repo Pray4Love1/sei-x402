@@ -1,12 +1,21 @@
-.env
+# CDK / AWS
+cdk.out/
+.cdk.staging/
+*.js
+*.d.ts
+# Node
 node_modules/
-dist/
-.turbo/
-.next/
-proxy
-.env
+pnpm-lock.yaml   # or keep if you want it versioned
+# Python
 __pycache__/
-**/.DS_Store
-e2e/facilitators/external-proxies/*
-!e2e/facilitators/external-proxies/README.md
-typescript/package-lock.json
+*.pyc
+.venv/
+# Env / secrets
+.env
+.env.local
+# IDE
+.idea/
+*.iml
+# Misc
+dist/
+build/
