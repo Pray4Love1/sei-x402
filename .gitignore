@@ -3,19 +3,27 @@ cdk.out/
 .cdk.staging/
 *.js
 *.d.ts
+
 # Node
 node_modules/
 pnpm-lock.yaml   # or keep if you want it versioned
+
 # Python
 __pycache__/
 *.pyc
 .venv/
+
 # Env / secrets
 .env
 .env.local
+
 # IDE
 .idea/
 *.iml
+
+# macOS
+**/.DS_Store
+
 # Misc
 dist/
 build/
