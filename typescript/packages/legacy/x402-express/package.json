@@ -60,5 +60,9 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "publishConfig": {
+    "name": "@sei-js/sei-x402-express",
+    "access": "public"
+  }
 }
