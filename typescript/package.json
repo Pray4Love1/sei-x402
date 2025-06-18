@@ -1,3 +1,5 @@
+{
+  "private": true,
   "scripts": {
     "build": "turbo run build",
     "lint": "turbo run lint",
@@ -10,4 +12,5 @@
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "pnpm build && changeset publish"
-  },
+  }
+}
