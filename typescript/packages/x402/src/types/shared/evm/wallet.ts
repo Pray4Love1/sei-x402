@@ -9,11 +9,18 @@ import type {
   WalletActions,
   PublicClient,
 } from "viem";
-import { baseSepolia, avalancheFuji, sei, seiTestnet } from "viem/chains";
-import { privateKeyToAccount } from "viem/accounts";
+import {
+  baseSepolia,
+  avalancheFuji,
+  sei,
+  seiTestnet,
+} from "viem/chains";
+import { privateKeyToAccount, type LocalAccount } from "viem/accounts";
 import { Hex } from "viem";
 
-// Create a public client for reading data
+/**
+ * Wallet client with signing + public actions
+ */
 export type SignerWallet<
   chain extends Chain = Chain,
   transport extends Transport = Transport,
@@ -26,6 +33,9 @@ export type SignerWallet<
   PublicActions<transport, chain, account> & WalletActions<chain, account>
 >;
 
+/**
+ * Read-only public client
+ */
 export type ConnectedClient<
   transport extends Transport = Transport,
   chain extends Chain | undefined = Chain,
@@ -33,11 +43,13 @@ export type ConnectedClient<
 > = PublicClient<transport, chain, account>;
 
 /**
- * Creates a public client configured for the Base Sepolia testnet
- *
- * @returns A public client instance connected to Base Sepolia
+ * Base Sepolia public client
  */
-export function createClientSepolia(): ConnectedClient<Transport, typeof baseSepolia, undefined> {
+export function createClientSepolia(): ConnectedClient<
+  Transport,
+  typeof baseSepolia,
+  undefined
+> {
   return createPublicClient({
     chain: baseSepolia,
     transport: http(),
@@ -45,9 +57,7 @@ export function createClientSepolia(): ConnectedClient<Transport, typeof baseSep
 }
 
 /**
- * Creates a public client configured for the Avalanche Fuji testnet
- *
- * @returns A public client instance connected to Avalanche Fuji
+ * Avalanche Fuji public client
  */
 export function createClientAvalancheFuji(): ConnectedClient<
   Transport,
@@ -61,34 +71,7 @@ export function createClientAvalancheFuji(): ConnectedClient<
 }
 
 /**
- * Creates a public client configured for the Sei testnet
- *
- * @returns A public client instance connected to Sei testnet
- */
-export function createClientSeiTestnet(): ConnectedClient<Transport, typeof seiTestnet, undefined> {
-  return createPublicClient({
-    chain: seiTestnet,
-    transport: http(),
-  }).extend(publicActions);
-}
-
-/**
- * Creates a public client configured for the Sei mainnet
- *
- * @returns A public client instance connected to Sei mainnet
- */
-export function createClientSei(): ConnectedClient<Transport, typeof sei, undefined> {
-  return createPublicClient({
-    chain: sei,
-    transport: http(),
-  }).extend(publicActions);
-}
-
-/**
- * Creates a wallet client configured for the Base Sepolia testnet with a private key
- *
- * @param privateKey - The private key to use for signing transactions
- * @returns A wallet client instance connected to Base Sepolia with the provided private key
+ * Base Sepolia signer
  */
 export function createSignerSepolia(privateKey: Hex): SignerWallet<typeof baseSepolia> {
   return createWalletClient({
@@ -99,12 +82,11 @@ export function createSignerSepolia(privateKey: Hex): SignerWallet<typeof baseSe
 }
 
 /**
- * Creates a wallet client configured for the Avalanche Fuji testnet with a private key
- *
- * @param privateKey - The private key to use for signing transactions
- * @returns A wallet client instance connected to Avalanche Fuji with the provided private key
+ * Avalanche Fuji signer
  */
-export function createSignerAvalancheFuji(privateKey: Hex): SignerWallet<typeof avalancheFuji> {
+export function createSignerAvalancheFuji(
+  privateKey: Hex,
+): SignerWallet<typeof avalancheFuji> {
   return createWalletClient({
     chain: avalancheFuji,
     transport: http(),
@@ -113,12 +95,11 @@ export function createSignerAvalancheFuji(privateKey: Hex): SignerWallet<typeof 
 }
 
 /**
- * Creates a wallet client configured for the Sei testnet with a private key
- *
- * @param privateKey - The private key to use for signing transactions
- * @returns A wallet client instance connected to Sei testnet with the provided private key
+ * Sei testnet signer
  */
-export function createSignerSeiTestnet(privateKey: Hex): SignerWallet<typeof seiTestnet> {
+export function createSignerSeiTestnet(
+  privateKey: Hex,
+): SignerWallet<typeof seiTestnet> {
   return createWalletClient({
     chain: seiTestnet,
     transport: http(),
@@ -127,10 +108,7 @@ export function createSignerSeiTestnet(privateKey: Hex): SignerWallet<typeof sei
 }
 
 /**
- * Creates a wallet client configured for the Sei mainnet with a private key
- *
- * @param privateKey - The private key to use for signing transactions
- * @returns A wallet client instance connected to Sei mainnet with the provided private key
+ * Sei mainnet signer
  */
 export function createSignerSei(privateKey: Hex): SignerWallet<typeof sei> {
   return createWalletClient({
@@ -141,10 +119,7 @@ export function createSignerSei(privateKey: Hex): SignerWallet<typeof sei> {
 }
 
 /**
- * Checks if a wallet is a signer wallet
- *
- * @param wallet - The wallet to check
- * @returns True if the wallet is a signer wallet, false otherwise
+ * Type guard: is this a signer wallet
  */
 export function isSignerWallet<
   TChain extends Chain = Chain,
@@ -153,15 +128,33 @@ export function isSignerWallet<
 >(
   wallet: SignerWallet<TChain, TTransport, TAccount> | Account,
 ): wallet is SignerWallet<TChain, TTransport, TAccount> {
-  return "chain" in wallet && "transport" in wallet;
+  return typeof wallet === "object" && wallet !== null && "chain" in wallet && "transport" in wallet;
 }
 
 /**
- * Checks if a wallet is an account
+ * Type guard: is this a LocalAccount (real signing account)
  *
- * @param wallet - The wallet to check
- * @returns True if the wallet is an account, false otherwise
+ * IMPORTANT:
+ * This matches viem's actual LocalAccount contract:
+ * address + full signing surface
  */
-export function isAccount(wallet: SignerWallet | Account): wallet is Account {
-  return "address" in wallet && "type" in wallet;
+export function isAccount<
+  TChain extends Chain = Chain,
+  TTransport extends Transport = Transport,
+  TAccount extends Account = Account,
+>(
+  wallet: SignerWallet<TChain, TTransport, TAccount> | LocalAccount,
+): wallet is LocalAccount {
+  const w = wallet as LocalAccount;
+
+  return (
+    typeof wallet === "object" &&
+    wallet !== null &&
+    typeof w.address === "string" &&
+    typeof w.type === "string" &&
+    typeof w.sign === "function" &&
+    typeof w.signMessage === "function" &&
+    typeof w.signTypedData === "function" &&
+    typeof w.signTransaction === "function"
+  );
 }
