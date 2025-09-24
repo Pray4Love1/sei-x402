@@ -1,43 +1,75 @@
-name: Check Python
-on: [pull_request]
+name: Python Quality Checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
 
 jobs:
-  test-python:
+  python-ci:
+    name: Python ${{ matrix.python-version }} • ${{ matrix.task }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+        task: [lint, test]
+
     defaults:
       run:
         working-directory: ./python/x402
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
+      # Cache uv + Python
+      - name: Set up uv
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
 
-      - name: Set up Python
-        run: uv python install
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
 
       - name: Install dependencies
+        if: matrix.task == 'test'
         run: uv sync --all-extras --dev
 
-      - name: Run Tests
-        run: pytest
+      - name: Run Ruff (Lint + Format check)
+        if: matrix.task == 'lint'
+        run: |
+          uvx ruff check .
+          uvx ruff format --check .
 
-  lint-python:
+      - name: Type Checking with mypy
+        if: matrix.task == 'lint'
+        run: uvx mypy .
+
+      - name: Run Tests with Coverage
+        if: matrix.task == 'test'
+        run: |
+          pytest --maxfail=1 --disable-warnings -q --cov --cov-report=xml
+
+      - name: Upload Coverage to Codecov
+        if: matrix.task == 'test'
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./python/x402/coverage.xml
+          fail_ci_if_error: true
+
+  # Optional: Security Scans
+  security:
+    name: Security Scan
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./python/x402
     steps:
       - uses: actions/checkout@v4
-
       - name: Install uv
         uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-
-      - name: Lint
-        run: uvx ruff check
+      - name: Install Bandit
+        run: uvx bandit -r .
