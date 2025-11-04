@@ -1,0 +1,335 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+/**
+ * @title IdentityRegistry
+ * @notice Maps human-readable identifiers (email, username) to wallet addresses
+ */
+contract IdentityRegistry {
+    mapping(bytes32 => address) public identities;
+    mapping(address => bytes32) public walletToIdentity;
+    mapping(bytes32 => bool) public identityExists;
+    
+    event IdentityRegistered(bytes32 indexed identityHash, address indexed wallet, uint256 timestamp);
+    event IdentityUpdated(bytes32 indexed identityHash, address indexed oldWallet, address indexed newWallet);
+    
+    function registerIdentity(bytes32 identityHash, address wallet) external {
+        require(!identityExists[identityHash], "Identity already registered");
+        require(wallet != address(0), "Invalid wallet address");
+        
+        identities[identityHash] = wallet;
+        walletToIdentity[wallet] = identityHash;
+        identityExists[identityHash] = true;
+        
+        emit IdentityRegistered(identityHash, wallet, block.timestamp);
+    }
+    
+    function updateIdentity(bytes32 identityHash, address newWallet) external {
+        require(identities[identityHash] == msg.sender, "Not authorized");
+        address oldWallet = identities[identityHash];
+        
+        identities[identityHash] = newWallet;
+        delete walletToIdentity[oldWallet];
+        walletToIdentity[newWallet] = identityHash;
+        
+        emit IdentityUpdated(identityHash, oldWallet, newWallet);
+    }
+    
+    function resolveIdentity(bytes32 identityHash) external view returns (address) {
+        return identities[identityHash];
+    }
+    
+    function getIdentityByWallet(address wallet) external view returns (bytes32) {
+        return walletToIdentity[wallet];
+    }
+}
+
+/**
+ * @title SmartWallet
+ * @notice Account abstraction wallet with PIN-based access
+ */
+contract SmartWallet {
+    address public owner;
+    bytes32 public pinHash;
+    
+    address[] public guardians;
+    mapping(address => bool) public isGuardian;
+    uint256 public guardianThreshold;
+    
+    mapping(bytes32 => uint256) public recoveryApprovals;
+    mapping(bytes32 => mapping(address => bool)) public hasApproved;
+    
+    uint256 public dailyLimit;
+    uint256 public dailySpent;
+    uint256 public lastResetTime;
+    
+    event Deposited(address indexed from, uint256 amount, uint256 timestamp);
+    event Withdrawn(address indexed to, uint256 amount, uint256 timestamp);
+    event PaymentSent(address indexed to, uint256 amount, string note, uint256 timestamp);
+    event PinChanged(uint256 timestamp);
+    event GuardianAdded(address indexed guardian);
+    event RecoveryInitiated(bytes32 indexed recoveryId, address indexed initiator);
+    event RecoveryCompleted(bytes32 indexed recoveryId, bytes32 newPinHash);
+    
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not authorized");
+        _;
+    }
+    
+    modifier validPin(string calldata pin) {
+        require(keccak256(abi.encodePacked(pin)) == pinHash, "Invalid PIN");
+        _;
+    }
+    
+    constructor(
+        address _owner,
+        bytes32 _pinHash,
+        address[] memory _guardians,
+        uint256 _dailyLimit
+    ) {
+        owner = _owner;
+        pinHash = _pinHash;
+        dailyLimit = _dailyLimit;
+        lastResetTime = block.timestamp;
+        
+        guardianThreshold = (_guardians.length / 2) + 1;
+        
+        for (uint i = 0; i < _guardians.length; i++) {
+            guardians.push(_guardians[i]);
+            isGuardian[_guardians[i]] = true;
+            emit GuardianAdded(_guardians[i]);
+        }
+    }
+    
+    receive() external payable {
+        emit Deposited(msg.sender, msg.value, block.timestamp);
+    }
+    
+    function withdraw(uint256 amount, string calldata pin) external validPin(pin) {
+        _checkDailyLimit(amount);
+        payable(owner).transfer(amount);
+        emit Withdrawn(owner, amount, block.timestamp);
+    }
+    
+    function sendPayment(
+        address payable recipient,
+        uint256 amount,
+        string calldata note,
+        string calldata pin
+    ) external validPin(pin) {
+        _checkDailyLimit(amount);
+        recipient.transfer(amount);
+        emit PaymentSent(recipient, amount, note, block.timestamp);
+    }
+    
+    function changePin(string calldata oldPin, string calldata newPin) external validPin(oldPin) {
+        pinHash = keccak256(abi.encodePacked(newPin));
+        emit PinChanged(block.timestamp);
+    }
+    
+    function initiateRecovery(bytes32 newPinHash) external {
+        require(isGuardian[msg.sender], "Not a guardian");
+        
+        bytes32 recoveryId = keccak256(abi.encodePacked(newPinHash, block.timestamp));
+        require(!hasApproved[recoveryId][msg.sender], "Already approved");
+        
+        hasApproved[recoveryId][msg.sender] = true;
+        recoveryApprovals[recoveryId]++;
+        
+        emit RecoveryInitiated(recoveryId, msg.sender);
+        
+        if (recoveryApprovals[recoveryId] >= guardianThreshold) {
+            pinHash = newPinHash;
+            emit RecoveryCompleted(recoveryId, newPinHash);
+        }
+    }
+    
+    function _checkDailyLimit(uint256 amount) internal {
+        if (block.timestamp >= lastResetTime + 1 days) {
+            dailySpent = 0;
+            lastResetTime = block.timestamp;
+        }
+        
+        require(dailySpent + amount <= dailyLimit, "Daily limit exceeded");
+        dailySpent += amount;
+    }
+    
+    function getBalance() external view returns (uint256) {
+        return address(this).balance;
+    }
+    
+    function getRemainingDailyLimit() external view returns (uint256) {
+        if (block.timestamp >= lastResetTime + 1 days) {
+            return dailyLimit;
+        }
+        return dailyLimit - dailySpent;
+    }
+}
+
+/**
+ * @title WalletFactory
+ * @notice Deploys SmartWallets for new users
+ */
+contract WalletFactory {
+    IdentityRegistry public registry;
+    
+    event WalletCreated(
+        address indexed wallet,
+        address indexed owner,
+        bytes32 indexed identityHash,
+        uint256 timestamp
+    );
+    
+    constructor(address _registry) {
+        registry = IdentityRegistry(_registry);
+    }
+    
+    function createWallet(
+        bytes32 identityHash,
+        bytes32 pinHash,
+        address[] calldata guardians,
+        uint256 dailyLimit
+    ) external returns (address) {
+        require(!registry.identityExists(identityHash), "Identity already exists");
+        
+        SmartWallet wallet = new SmartWallet(
+            msg.sender,
+            pinHash,
+            guardians,
+            dailyLimit
+        );
+        
+        address walletAddress = address(wallet);
+        registry.registerIdentity(identityHash, walletAddress);
+        
+        emit WalletCreated(walletAddress, msg.sender, identityHash, block.timestamp);
+        
+        return walletAddress;
+    }
+}
+
+/**
+ * @title PaymentRouter
+ * @notice Routes payments using human-readable identifiers
+ */
+contract PaymentRouter {
+    IdentityRegistry public registry;
+    
+    event PaymentRouted(
+        address indexed from,
+        address indexed to,
+        uint256 amount,
+        bytes32 identityHash,
+        string note,
+        uint256 timestamp
+    );
+    
+    constructor(address _registry) {
+        registry = IdentityRegistry(_registry);
+    }
+    
+    function sendPayment(string calldata identifier, string calldata note) external payable {
+        require(msg.value > 0, "Amount must be greater than 0");
+        
+        bytes32 identityHash = keccak256(abi.encodePacked(identifier));
+        address recipient = registry.resolveIdentity(identityHash);
+        require(recipient != address(0), "Recipient not found");
+        
+        (bool success, ) = recipient.call{value: msg.value}("");
+        require(success, "Payment failed");
+        
+        emit PaymentRouted(msg.sender, recipient, msg.value, identityHash, note, block.timestamp);
+    }
+    
+    function sendPaymentBatch(
+        string[] calldata identifiers,
+        uint256[] calldata amounts,
+        string calldata note
+    ) external payable {
+        require(identifiers.length == amounts.length, "Length mismatch");
+        
+        uint256 totalAmount = 0;
+        for (uint i = 0; i < amounts.length; i++) {
+            totalAmount += amounts[i];
+        }
+        require(msg.value >= totalAmount, "Insufficient funds");
+        
+        for (uint i = 0; i < identifiers.length; i++) {
+            bytes32 identityHash = keccak256(abi.encodePacked(identifiers[i]));
+            address recipient = registry.resolveIdentity(identityHash);
+            require(recipient != address(0), "Recipient not found");
+            
+            (bool success, ) = recipient.call{value: amounts[i]}("");
+            require(success, "Payment failed");
+            
+            emit PaymentRouted(msg.sender, recipient, amounts[i], identityHash, note, block.timestamp);
+        }
+    }
+}
+
+/**
+ * @title GaslessRelayer
+ * @notice Enables gasless transactions (account abstraction)
+ */
+contract GaslessRelayer {
+    mapping(address => bool) public approvedRelayers;
+    mapping(address => uint256) public nonces;
+    
+    event RelayerAdded(address indexed relayer);
+    event TransactionRelayed(address indexed from, address indexed to, bool success);
+    
+    modifier onlyRelayer() {
+        require(approvedRelayers[msg.sender], "Not an approved relayer");
+        _;
+    }
+    
+    constructor() {
+        approvedRelayers[msg.sender] = true;
+    }
+    
+    function addRelayer(address relayer) external {
+        require(approvedRelayers[msg.sender], "Not authorized");
+        approvedRelayers[relayer] = true;
+        emit RelayerAdded(relayer);
+    }
+    
+    function relayTransaction(
+        address from,
+        address to,
+        uint256 value,
+        bytes calldata data,
+        uint256 nonce,
+        bytes calldata signature
+    ) external onlyRelayer returns (bool) {
+        require(nonces[from] == nonce, "Invalid nonce");
+        
+        bytes32 messageHash = keccak256(abi.encodePacked(from, to, value, data, nonce));
+        bytes32 ethSignedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
+        
+        address signer = recoverSigner(ethSignedHash, signature);
+        require(signer == from, "Invalid signature");
+        
+        nonces[from]++;
+        
+        (bool success, ) = to.call{value: value}(data);
+        emit TransactionRelayed(from, to, success);
+        
+        return success;
+    }
+    
+    function recoverSigner(bytes32 hash, bytes memory signature) internal pure returns (address) {
+        require(signature.length == 65, "Invalid signature length");
+        
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+        
+        assembly {
+            r := mload(add(signature, 32))
+            s := mload(add(signature, 64))
+            v := byte(0, mload(add(signature, 96)))
+        }
+        
+        return ecrecover(hash, v, r, s);
+    }
+}
