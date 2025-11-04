@@ -1,0 +1,184 @@
+"""
+GenZk-402: Web2-Simple Payment Client
+Makes crypto as easy as Venmo/CashApp
+"""
+
+from web3 import Web3
+import hashlib
+import json
+
+class GenZk402Client:
+    def __init__(self, rpc_url, identity_registry, payment_router, wallet_factory):
+        self.w3 = Web3(Web3.HTTPProvider(rpc_url))
+        self.identity_registry = identity_registry
+        self.payment_router = payment_router
+        self.wallet_factory = wallet_factory
+    
+    def hash_identity(self, identifier: str) -> bytes:
+        """Convert email/username to privacy-preserving hash"""
+        return self.w3.keccak(text=identifier)
+    
+    def hash_pin(self, pin: str) -> bytes:
+        """Hash user's cipher word (PIN)"""
+        return self.w3.keccak(text=pin)
+    
+    def create_wallet(self, email: str, pin: str, guardians: list):
+        """
+        Onboard new user (Web2-simple)
+        
+        Args:
+            email: user's email/username
+            pin: user's cipher word (like ATM PIN)
+            guardians: list of guardian addresses for recovery
+        """
+        identity_hash = self.hash_identity(email)
+        pin_hash = self.hash_pin(pin)
+        
+        # Deploy smart wallet (account abstraction)
+        tx = self.wallet_factory.functions.createWallet(
+            identity_hash,
+            pin_hash,
+            guardians
+        ).build_transaction({
+            'from': self.w3.eth.default_account,
+            'gas': 2000000,
+            'nonce': self.w3.eth.get_transaction_count(self.w3.eth.default_account)
+        })
+        
+        signed = self.w3.eth.account.sign_transaction(tx, private_key='YOUR_KEY')
+        tx_hash = self.w3.eth.send_raw_transaction(signed.rawTransaction)
+        receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+        
+        wallet_address = receipt['logs'][0]['address']  # Extract from event
+        
+        return {
+            'email': email,
+            'wallet': wallet_address,
+            'identity_hash': identity_hash.hex(),
+            'recovery_qr': self.generate_recovery_qr(email, guardians)
+        }
+    
+    def send_payment(self, from_wallet: str, to_identifier: str, amount: float, pin: str):
+        """
+        Send money Web2-style
+        
+        Args:
+            from_wallet: sender's wallet address
+            to_identifier: recipient's @username or email
+            amount: amount to send (in ETH/BASE)
+            pin: sender's cipher word
+        """
+        # Verify PIN
+        pin_hash = self.hash_pin(pin)
+        # (In production, verify PIN against stored hash)
+        
+        # Send payment via router
+        tx = self.payment_router.functions.sendPayment(to_identifier).build_transaction({
+            'from': from_wallet,
+            'value': self.w3.to_wei(amount, 'ether'),
+            'gas': 500000,
+            'nonce': self.w3.eth.get_transaction_count(from_wallet)
+        })
+        
+        # Sign and send
+        signed = self.w3.eth.account.sign_transaction(tx, private_key='DERIVED_FROM_PIN')
+        tx_hash = self.w3.eth.send_raw_transaction(signed.rawTransaction)
+        
+        return {
+            'status': 'sent',
+            'tx_hash': tx_hash.hex(),
+            'to': to_identifier,
+            'amount': amount
+        }
+    
+    def withdraw(self, wallet_address: str, amount: float, pin: str):
+        """
+        Withdraw funds (like ATM withdrawal)
+        
+        Args:
+            wallet_address: user's smart wallet
+            amount: amount to withdraw
+            pin: user's cipher word
+        """
+        wallet_contract = self.w3.eth.contract(
+            address=wallet_address,
+            abi=self.load_abi('SmartWallet')
+        )
+        
+        tx = wallet_contract.functions.withdraw(
+            self.w3.to_wei(amount, 'ether'),
+            pin
+        ).build_transaction({
+            'from': self.w3.eth.default_account,
+            'gas': 300000,
+            'nonce': self.w3.eth.get_transaction_count(self.w3.eth.default_account)
+        })
+        
+        signed = self.w3.eth.account.sign_transaction(tx, private_key='YOUR_KEY')
+        tx_hash = self.w3.eth.send_raw_transaction(signed.rawTransaction)
+        
+        return {
+            'status': 'withdrawn',
+            'amount': amount,
+            'tx_hash': tx_hash.hex()
+        }
+    
+    def check_balance(self, identifier: str) -> float:
+        """Check balance by username/email"""
+        identity_hash = self.hash_identity(identifier)
+        wallet = self.identity_registry.functions.resolveIdentity(identity_hash).call()
+        balance_wei = self.w3.eth.get_balance(wallet)
+        return self.w3.from_wei(balance_wei, 'ether')
+    
+    def generate_recovery_qr(self, email: str, guardians: list) -> str:
+        """Generate QR code for wallet recovery"""
+        recovery_data = {
+            'email': email,
+            'guardians': guardians,
+            'protocol': 'genzk402'
+        }
+        return f"genzk402://recover?data={json.dumps(recovery_data)}"
+    
+    def load_abi(self, contract_name: str):
+        """Load contract ABI (placeholder)"""
+        # In production, load from file
+        return []
+
+
+# Example Usage
+if __name__ == "__main__":
+    client = GenZk402Client(
+        rpc_url="https://rpc.base44.io",
+        identity_registry="0x...",
+        payment_router="0x...",
+        wallet_factory="0x..."
+    )
+    
+    # Onboard new user
+    user = client.create_wallet(
+        email="alice@example.com",
+        pin="mySecretWord123",
+        guardians=["0xGuardian1", "0xGuardian2", "0xGuardian3"]
+    )
+    print(f"User created: {user['wallet']}")
+    
+    # Send payment (Web2-simple)
+    payment = client.send_payment(
+        from_wallet=user['wallet'],
+        to_identifier="bob@example.com",  # Just like Venmo!
+        amount=50.0,
+        pin="mySecretWord123"
+    )
+    print(f"Payment sent: {payment['tx_hash']}")
+    
+    # Withdraw (like ATM)
+    withdrawal = client.withdraw(
+        wallet_address=user['wallet'],
+        amount=100.0,
+        pin="mySecretWord123"
+    )
+    print(f"Withdrawal complete: {withdrawal['tx_hash']}")
+    
+    # Check balance
+    balance = client.check_balance("alice@example.com")
+    print(f"Balance: {balance} ETH")
