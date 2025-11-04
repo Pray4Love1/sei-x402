@@ -1,0 +1,464 @@
+import React, { useState, useEffect } from 'react';
+import { Camera, Send, Download, Users, Shield, QrCode, Wallet, Key, ArrowRight, CheckCircle, AlertCircle } from 'lucide-react';
+
+const GenZk402App = () => {
+  const [currentScreen, setCurrentScreen] = useState('splash');
+  const [user, setUser] = useState(null);
+  const [balance, setBalance] = useState(0);
+  const [recipient, setRecipient] = useState('');
+  const [amount, setAmount] = useState('');
+  const [pin, setPin] = useState('');
+  const [transactions, setTransactions] = useState([]);
+
+  // Splash screen auto-advance
+  useEffect(() => {
+    if (currentScreen === 'splash') {
+      setTimeout(() => setCurrentScreen(user ? 'home' : 'onboarding'), 2000);
+    }
+  }, [currentScreen, user]);
+
+  const screens = {
+    splash: <SplashScreen />,
+    onboarding: <OnboardingScreen setUser={setUser} setCurrentScreen={setCurrentScreen} />,
+    home: <HomeScreen user={user} balance={balance} setCurrentScreen={setCurrentScreen} transactions={transactions} />,
+    send: <SendScreen recipient={recipient} setRecipient={setRecipient} amount={amount} setAmount={setAmount} pin={pin} setPin={setPin} setCurrentScreen={setCurrentScreen} setTransactions={setTransactions} />,
+    receive: <ReceiveScreen user={user} setCurrentScreen={setCurrentScreen} />,
+    withdraw: <WithdrawScreen balance={balance} pin={pin} setPin={setPin} setCurrentScreen={setCurrentScreen} />,
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900">
+      {screens[currentScreen]}
+    </div>
+  );
+};
+
+// Splash Screen
+const SplashScreen = () => (
+  <div className="flex items-center justify-center h-screen">
+    <div className="text-center">
+      <div className="mb-8 relative">
+        <div className="w-32 h-32 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-3xl mx-auto animate-pulse shadow-2xl shadow-cyan-500/50"></div>
+        <Wallet className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-white" size={64} />
+      </div>
+      <h1 className="text-5xl font-bold text-white mb-2">GenZk-402</h1>
+      <p className="text-cyan-300 text-lg">Payments Made Simple</p>
+    </div>
+  </div>
+);
+
+// Onboarding Screen
+const OnboardingScreen = ({ setUser, setCurrentScreen }) => {
+  const [step, setStep] = useState(1);
+  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [guardians, setGuardians] = useState(['', '', '']);
+
+  const handleCreateAccount = () => {
+    if (newPin !== confirmPin) {
+      alert('PINs do not match');
+      return;
+    }
+    
+    const userData = {
+      email,
+      username: `@${username}`,
+      wallet: '0x' + Math.random().toString(16).substr(2, 40),
+    };
+    
+    setUser(userData);
+    setCurrentScreen('home');
+  };
+
+  return (
+    <div className="flex items-center justify-center min-h-screen p-6">
+      <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 w-full max-w-md border border-white/20">
+        <div className="mb-6">
+          <h2 className="text-3xl font-bold text-white mb-2">Welcome to GenZk-402</h2>
+          <p className="text-cyan-300">Step {step} of 3</p>
+        </div>
+
+        {step === 1 && (
+          <div className="space-y-4">
+            <input
+              type="email"
+              placeholder="Email address"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+            />
+            <input
+              type="text"
+              placeholder="Username (e.g., alice)"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+            />
+            <button
+              onClick={() => setStep(2)}
+              disabled={!email || !username}
+              className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-cyan-500/50 transition-all disabled:opacity-50"
+            >
+              Continue
+            </button>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="space-y-4">
+            <div className="mb-4">
+              <Key className="text-cyan-400 mx-auto mb-2" size={48} />
+              <p className="text-white/80 text-center">Create a PIN (like your ATM PIN)</p>
+            </div>
+            <input
+              type="password"
+              placeholder="Create PIN (e.g., mySecretWord)"
+              value={newPin}
+              onChange={(e) => setNewPin(e.target.value)}
+              className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+            />
+            <input
+              type="password"
+              placeholder="Confirm PIN"
+              value={confirmPin}
+              onChange={(e) => setConfirmPin(e.target.value)}
+              className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+            />
+            <button
+              onClick={() => setStep(3)}
+              disabled={!newPin || newPin !== confirmPin}
+              className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-cyan-500/50 transition-all disabled:opacity-50"
+            >
+              Continue
+            </button>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="space-y-4">
+            <div className="mb-4">
+              <Shield className="text-green-400 mx-auto mb-2" size={48} />
+              <p className="text-white/80 text-center">Add recovery guardians (optional but recommended)</p>
+            </div>
+            {guardians.map((g, i) => (
+              <input
+                key={i}
+                type="text"
+                placeholder={`Guardian ${i + 1} (@username or email)`}
+                value={g}
+                onChange={(e) => {
+                  const newG = [...guardians];
+                  newG[i] = e.target.value;
+                  setGuardians(newG);
+                }}
+                className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+              />
+            ))}
+            <button
+              onClick={handleCreateAccount}
+              className="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-green-500/50 transition-all"
+            >
+              Create Account
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Home Screen
+const HomeScreen = ({ user, balance, setCurrentScreen, transactions }) => {
+  return (
+    <div className="min-h-screen p-6">
+      <div className="max-w-md mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-2xl text-white/80 mb-1">Welcome back,</h1>
+          <h2 className="text-4xl font-bold text-white">{user?.username || '@user'}</h2>
+        </div>
+
+        {/* Balance Card */}
+        <div className="bg-gradient-to-br from-cyan-500 to-blue-600 rounded-3xl p-6 mb-6 shadow-2xl shadow-cyan-500/30">
+          <p className="text-cyan-100 text-sm mb-2">Total Balance</p>
+          <h3 className="text-5xl font-bold text-white mb-4">${balance.toFixed(2)}</h3>
+          <p className="text-cyan-100 text-xs">{user?.wallet}</p>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="grid grid-cols-3 gap-4 mb-8">
+          <button
+            onClick={() => setCurrentScreen('send')}
+            className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-4 hover:bg-white/20 transition-all"
+          >
+            <Send className="text-cyan-400 mx-auto mb-2" size={32} />
+            <p className="text-white text-sm font-semibold">Send</p>
+          </button>
+          <button
+            onClick={() => setCurrentScreen('receive')}
+            className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-4 hover:bg-white/20 transition-all"
+          >
+            <QrCode className="text-green-400 mx-auto mb-2" size={32} />
+            <p className="text-white text-sm font-semibold">Receive</p>
+          </button>
+          <button
+            onClick={() => setCurrentScreen('withdraw')}
+            className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-4 hover:bg-white/20 transition-all"
+          >
+            <Download className="text-yellow-400 mx-auto mb-2" size={32} />
+            <p className="text-white text-sm font-semibold">Withdraw</p>
+          </button>
+        </div>
+
+        {/* Recent Transactions */}
+        <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-3xl p-6">
+          <h3 className="text-xl font-bold text-white mb-4">Recent Activity</h3>
+          {transactions.length === 0 ? (
+            <p className="text-white/60 text-center py-8">No transactions yet</p>
+          ) : (
+            <div className="space-y-3">
+              {transactions.map((tx, i) => (
+                <div key={i} className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-cyan-500/20 rounded-full flex items-center justify-center">
+                      <Send className="text-cyan-400" size={20} />
+                    </div>
+                    <div>
+                      <p className="text-white font-semibold">{tx.recipient}</p>
+                      <p className="text-white/60 text-sm">{tx.time}</p>
+                    </div>
+                  </div>
+                  <p className="text-red-400 font-bold">-${tx.amount}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Send Screen
+const SendScreen = ({ recipient, setRecipient, amount, setAmount, pin, setPin, setCurrentScreen, setTransactions }) => {
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  const handleSend = () => {
+    if (!recipient || !amount || !pin) {
+      alert('Please fill all fields');
+      return;
+    }
+
+    const newTx = {
+      recipient,
+      amount: parseFloat(amount),
+      time: new Date().toLocaleTimeString(),
+    };
+    
+    setTransactions(prev => [newTx, ...prev]);
+    setShowSuccess(true);
+    
+    setTimeout(() => {
+      setShowSuccess(false);
+      setCurrentScreen('home');
+      setRecipient('');
+      setAmount('');
+      setPin('');
+    }, 2000);
+  };
+
+  if (showSuccess) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <CheckCircle className="text-green-400 mx-auto mb-4 animate-bounce" size={80} />
+          <h2 className="text-3xl font-bold text-white mb-2">Payment Sent!</h2>
+          <p className="text-cyan-300">Redirecting...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-center min-h-screen p-6">
+      <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 w-full max-w-md border border-white/20">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-3xl font-bold text-white">Send Money</h2>
+          <button onClick={() => setCurrentScreen('home')} className="text-white/60 hover:text-white">
+            ✕
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="text-white/80 text-sm mb-2 block">Send to</label>
+            <input
+              type="text"
+              placeholder="@username or email"
+              value={recipient}
+              onChange={(e) => setRecipient(e.target.value)}
+              className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+            />
+          </div>
+
+          <div>
+            <label className="text-white/80 text-sm mb-2 block">Amount</label>
+            <div className="relative">
+              <span className="absolute left-4 top-3 text-white text-xl">$</span>
+              <input
+                type="number"
+                placeholder="0.00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white text-xl placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-white/80 text-sm mb-2 block">Your PIN</label>
+            <input
+              type="password"
+              placeholder="Enter your PIN"
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+            />
+          </div>
+
+          <button
+            onClick={handleSend}
+            disabled={!recipient || !amount || !pin}
+            className="w-full py-4 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl font-bold text-lg hover:shadow-lg hover:shadow-cyan-500/50 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            Send ${amount || '0.00'}
+            <ArrowRight size={20} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Receive Screen
+const ReceiveScreen = ({ user, setCurrentScreen }) => {
+  return (
+    <div className="flex items-center justify-center min-h-screen p-6">
+      <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 w-full max-w-md border border-white/20">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-3xl font-bold text-white">Receive Money</h2>
+          <button onClick={() => setCurrentScreen('home')} className="text-white/60 hover:text-white">
+            ✕
+          </button>
+        </div>
+
+        <div className="text-center">
+          <div className="w-64 h-64 bg-white rounded-2xl mx-auto mb-6 flex items-center justify-center">
+            <QrCode size={200} className="text-gray-800" />
+          </div>
+
+          <div className="bg-white/20 rounded-xl p-4 mb-4">
+            <p className="text-white/80 text-sm mb-2">Your username</p>
+            <p className="text-white text-2xl font-bold">{user?.username}</p>
+          </div>
+
+          <div className="bg-white/20 rounded-xl p-4">
+            <p className="text-white/80 text-sm mb-2">Or share your wallet</p>
+            <p className="text-white text-xs font-mono break-all">{user?.wallet}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Withdraw Screen
+const WithdrawScreen = ({ balance, pin, setPin, setCurrentScreen }) => {
+  const [amount, setAmount] = useState('');
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  const handleWithdraw = () => {
+    if (!amount || !pin) {
+      alert('Please fill all fields');
+      return;
+    }
+
+    setShowSuccess(true);
+    setTimeout(() => {
+      setShowSuccess(false);
+      setCurrentScreen('home');
+      setAmount('');
+      setPin('');
+    }, 2000);
+  };
+
+  if (showSuccess) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <CheckCircle className="text-green-400 mx-auto mb-4 animate-bounce" size={80} />
+          <h2 className="text-3xl font-bold text-white mb-2">Withdrawal Successful!</h2>
+          <p className="text-cyan-300">Funds sent to your bank account</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-center min-h-screen p-6">
+      <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 w-full max-w-md border border-white/20">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-3xl font-bold text-white">Withdraw</h2>
+          <button onClick={() => setCurrentScreen('home')} className="text-white/60 hover:text-white">
+            ✕
+          </button>
+        </div>
+
+        <div className="bg-cyan-500/20 border border-cyan-400/50 rounded-xl p-4 mb-6">
+          <p className="text-cyan-300 text-sm mb-1">Available Balance</p>
+          <p className="text-white text-3xl font-bold">${balance.toFixed(2)}</p>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="text-white/80 text-sm mb-2 block">Withdrawal Amount</label>
+            <div className="relative">
+              <span className="absolute left-4 top-3 text-white text-xl">$</span>
+              <input
+                type="number"
+                placeholder="0.00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white text-xl placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-white/80 text-sm mb-2 block">Your PIN</label>
+            <input
+              type="password"
+              placeholder="Enter your PIN"
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+            />
+          </div>
+
+          <button
+            onClick={handleWithdraw}
+            disabled={!amount || !pin}
+            className="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold text-lg hover:shadow-lg hover:shadow-green-500/50 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            Withdraw to Bank
+            <Download size={20} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default GenZk402App;
