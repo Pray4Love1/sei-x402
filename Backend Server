@@ -1,0 +1,399 @@
+"""
+GenZk-402 Backend Server
+Flask API for wallet creation, payments, and gasless transactions
+"""
+
+from flask import Flask, request, jsonify
+from web3 import Web3
+from eth_account import Account
+import hashlib
+import json
+import os
+from typing import Dict, List
+
+app = Flask(__name__)
+
+# Configuration
+RPC_URL = os.getenv('BASE_RPC_URL', 'https://rpc.base44.io')
+IDENTITY_REGISTRY = os.getenv('IDENTITY_REGISTRY', '0x...')
+WALLET_FACTORY = os.getenv('WALLET_FACTORY', '0x...')
+PAYMENT_ROUTER = os.getenv('PAYMENT_ROUTER', '0x...')
+RELAYER_PRIVATE_KEY = os.getenv('RELAYER_PRIVATE_KEY', '0x...')
+
+w3 = Web3(Web3.HTTPProvider(RPC_URL))
+relayer_account = Account.from_key(RELAYER_PRIVATE_KEY)
+
+# In-memory storage (replace with database in production)
+user_db = {}
+pending_transactions = {}
+
+# Contract ABIs (simplified)
+IDENTITY_REGISTRY_ABI = [
+    {
+        "inputs": [{"name": "identityHash", "type": "bytes32"}, {"name": "wallet", "type": "address"}],
+        "name": "registerIdentity",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [{"name": "identityHash", "type": "bytes32"}],
+        "name": "resolveIdentity",
+        "outputs": [{"name": "", "type": "address"}],
+        "stateMutability": "view",
+        "type": "function"
+    }
+]
+
+WALLET_FACTORY_ABI = [
+    {
+        "inputs": [
+            {"name": "identityHash", "type": "bytes32"},
+            {"name": "pinHash", "type": "bytes32"},
+            {"name": "guardians", "type": "address[]"},
+            {"name": "dailyLimit", "type": "uint256"}
+        ],
+        "name": "createWallet",
+        "outputs": [{"name": "", "type": "address"}],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
+]
+
+PAYMENT_ROUTER_ABI = [
+    {
+        "inputs": [{"name": "identifier", "type": "string"}, {"name": "note", "type": "string"}],
+        "name": "sendPayment",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function"
+    }
+]
+
+# Initialize contracts
+identity_registry = w3.eth.contract(address=IDENTITY_REGISTRY, abi=IDENTITY_REGISTRY_ABI)
+wallet_factory = w3.eth.contract(address=WALLET_FACTORY, abi=WALLET_FACTORY_ABI)
+payment_router = w3.eth.contract(address=PAYMENT_ROUTER, abi=PAYMENT_ROUTER_ABI)
+
+
+def hash_identifier(identifier: str) -> bytes:
+    """Hash email/username for privacy"""
+    return w3.keccak(text=identifier)
+
+
+def hash_pin(pin: str) -> bytes:
+    """Hash user's PIN"""
+    return w3.keccak(text=pin)
+
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint"""
+    return jsonify({'status': 'ok', 'network': 'Base44'}), 200
+
+
+@app.route('/api/v1/wallet/create', methods=['POST'])
+def create_wallet():
+    """
+    Create new wallet for user
+    
+    Body:
+    {
+        "email": "user@example.com",
+        "username": "alice",
+        "pin": "mySecretWord",
+        "guardians": ["guardian1@example.com", "guardian2@example.com"]
+    }
+    """
+    try:
+        data = request.json
+        email = data.get('email')
+        username = data.get('username')
+        pin = data.get('pin')
+        guardians = data.get('guardians', [])
+        
+        if not email or not username or not pin:
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        # Hash identity and PIN
+        identity_hash = hash_identifier(email)
+        pin_hash = hash_pin(pin)
+        
+        # Resolve guardian addresses (or use placeholder)
+        guardian_addresses = [
+            identity_registry.functions.resolveIdentity(hash_identifier(g)).call()
+            for g in guardians if g
+        ]
+        
+        # Filter out zero addresses
+        guardian_addresses = [g for g in guardian_addresses if g != '0x0000000000000000000000000000000000000000']
+        
+        # If no guardians resolved, use default guardian address
+        if not guardian_addresses:
+            guardian_addresses = [relayer_account.address]
+        
+        # Create wallet transaction
+        daily_limit = w3.to_wei(1000, 'ether')  # $1000 daily limit
+        
+        tx = wallet_factory.functions.createWallet(
+            identity_hash,
+            pin_hash,
+            guardian_addresses,
+            daily_limit
+        ).build_transaction({
+            'from': relayer_account.address,
+            'gas': 2000000,
+            'gasPrice': w3.eth.gas_price,
+            'nonce': w3.eth.get_transaction_count(relayer_account.address)
+        })
+        
+        # Sign and send transaction
+        signed_tx = relayer_account.sign_transaction(tx)
+        tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+        
+        # Extract wallet address from event logs
+        wallet_address = receipt['logs'][0]['address'] if receipt['logs'] else None
+        
+        # Store user data
+        user_db[email] = {
+            'email': email,
+            'username': username,
+            'wallet': wallet_address,
+            'identity_hash': identity_hash.hex(),
+            'guardians': guardian_addresses
+        }
+        
+        return jsonify({
+            'success': True,
+            'wallet': wallet_address,
+            'username': f'@{username}',
+            'tx_hash': tx_hash.hex(),
+            'recovery_qr': f'genzk402://recover?wallet={wallet_address}'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/payment/send', methods=['POST'])
+def send_payment():
+    """
+    Send payment to recipient
+    
+    Body:
+    {
+        "from": "sender@example.com",
+        "to": "@alice",
+        "amount": 50.0,
+        "pin": "mySecretWord",
+        "note": "Lunch money"
+    }
+    """
+    try:
+        data = request.json
+        sender = data.get('from')
+        recipient = data.get('to')
+        amount = float(data.get('amount', 0))
+        pin = data.get('pin')
+        note = data.get('note', '')
+        
+        if not sender or not recipient or amount <= 0 or not pin:
+            return jsonify({'error': 'Invalid payment parameters'}), 400
+        
+        # Verify sender's PIN
+        sender_data = user_db.get(sender)
+        if not sender_data:
+            return jsonify({'error': 'Sender not found'}), 404
+        
+        stored_pin_hash = hash_pin(pin)
+        # In production, verify against stored hash
+        
+        # Convert amount to wei
+        amount_wei = w3.to_wei(amount, 'ether')
+        
+        # Send payment via router (gasless transaction)
+        tx = payment_router.functions.sendPayment(recipient, note).build_transaction({
+            'from': sender_data['wallet'],
+            'value': amount_wei,
+            'gas': 500000,
+            'gasPrice': w3.eth.gas_price,
+            'nonce': w3.eth.get_transaction_count(relayer_account.address)
+        })
+        
+        # Relayer signs and sends (user doesn't pay gas)
+        signed_tx = relayer_account.sign_transaction(tx)
+        tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        
+        return jsonify({
+            'success': True,
+            'tx_hash': tx_hash.hex(),
+            'amount': amount,
+            'recipient': recipient,
+            'note': note
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/payment/withdraw', methods=['POST'])
+def withdraw():
+    """
+    Withdraw to bank account
+    
+    Body:
+    {
+        "email": "user@example.com",
+        "amount": 100.0,
+        "pin": "mySecretWord",
+        "bank_account": "US1234567890"
+    }
+    """
+    try:
+        data = request.json
+        email = data.get('email')
+        amount = float(data.get('amount', 0))
+        pin = data.get('pin')
+        bank_account = data.get('bank_account')
+        
+        if not email or amount <= 0 or not pin:
+            return jsonify({'error': 'Invalid withdrawal parameters'}), 400
+        
+        # Verify user
+        user_data = user_db.get(email)
+        if not user_data:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # In production: integrate with fiat off-ramp (Stripe, Circle, etc.)
+        # For now, simulate withdrawal
+        
+        return jsonify({
+            'success': True,
+            'amount': amount,
+            'bank_account': bank_account[-4:],  # Last 4 digits
+            'estimated_arrival': '1-2 business days',
+            'status': 'pending'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/wallet/balance', methods=['GET'])
+def get_balance():
+    """
+    Get wallet balance
+    
+    Query params:
+    - email or username
+    """
+    try:
+        email = request.args.get('email')
+        username = request.args.get('username')
+        
+        if not email and not username:
+            return jsonify({'error': 'Email or username required'}), 400
+        
+        # Find user
+        user_data = None
+        if email:
+            user_data = user_db.get(email)
+        else:
+            for user in user_db.values():
+                if user['username'] == username:
+                    user_data = user
+                    break
+        
+        if not user_data:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Get balance
+        wallet_address = user_data['wallet']
+        balance_wei = w3.eth.get_balance(wallet_address)
+        balance_eth = w3.from_wei(balance_wei, 'ether')
+        
+        return jsonify({
+            'wallet': wallet_address,
+            'balance': float(balance_eth),
+            'username': user_data['username']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/user/resolve', methods=['GET'])
+def resolve_user():
+    """
+    Resolve username/email to wallet address
+    
+    Query params:
+    - identifier (@username or email)
+    """
+    try:
+        identifier = request.args.get('identifier')
+        if not identifier:
+            return jsonify({'error': 'Identifier required'}), 400
+        
+        identity_hash = hash_identifier(identifier)
+        wallet = identity_registry.functions.resolveIdentity(identity_hash).call()
+        
+        if wallet == '0x0000000000000000000000000000000000000000':
+            return jsonify({'error': 'User not found'}), 404
+        
+        return jsonify({
+            'identifier': identifier,
+            'wallet': wallet
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/recovery/initiate', methods=['POST'])
+def initiate_recovery():
+    """
+    Initiate guardian recovery
+    
+    Body:
+    {
+        "email": "user@example.com",
+        "new_pin": "newSecretWord",
+        "guardian_email": "guardian@example.com"
+    }
+    """
+    try:
+        data = request.json
+        email = data.get('email')
+        new_pin = data.get('new_pin')
+        guardian_email = data.get('guardian_email')
+        
+        if not email or not new_pin or not guardian_email:
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        user_data = user_db.get(email)
+        if not user_data:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Verify guardian
+        guardian_data = user_db.get(guardian_email)
+        if not guardian_data or guardian_data['wallet'] not in user_data['guardians']:
+            return jsonify({'error': 'Invalid guardian'}), 403
+        
+        # In production: create recovery transaction
+        # Requires guardian signatures to approve new PIN
+        
+        return jsonify({
+            'success': True,
+            'recovery_id': hashlib.sha256(f'{email}{new_pin}'.encode()).hexdigest(),
+            'status': 'pending_approval',
+            'required_approvals': (len(user_data['guardians']) // 2) + 1
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
