@@ -1,0 +1,18 @@
+{
+  "signatureScheme": "hmac-sha256",
+  "signature": "0000000000000000000000000000000000000000000000000000000000000000",
+  "signedAt": "2025-01-01T00:00:00Z",
+  "payload": {
+    "dropId": "drop_001",
+    "network": "sei-testnet",
+    "asset": "USDC",
+    "amount": "1000000",
+    "payTo": "0x0000000000000000000000000000000000000000",
+    "resource": "https://example.com/resource",
+    "expiresAt": 1737400000,
+    "metadata": {
+      "campaign": "codex-gigadrop-demo",
+      "batch": 1
+    }
+  }
+}

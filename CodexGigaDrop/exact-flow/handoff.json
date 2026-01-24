@@ -1,0 +1,13 @@
+{
+  "dropId": "drop_001",
+  "network": "sei-testnet",
+  "asset": "USDC",
+  "amount": "1000000",
+  "payTo": "0x0000000000000000000000000000000000000000",
+  "resource": "https://example.com/resource",
+  "expiresAt": 1737400000,
+  "metadata": {
+    "campaign": "codex-gigadrop-demo",
+    "batch": 1
+  }
+}
