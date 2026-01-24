@@ -1,0 +1,480 @@
+{
+  "type": "codex_proof",
+  "title": "Sample Codex Doc 1",
+  "author": "Pray4Love1",
+  "body": "This is a test payload."
+}
+{
+  "type": "codex_proof",
+  "title": "Sample Codex Doc 2",
+  "author": "Pray4Love1",
+  "body": "Second test payload."
+}
+
+{
+  "action": {
+    "grouping": "na",
+    "orders": [
+      {
+        "a": {
+          "asset": 0,
+          "name": "ETH",
+          "sz_decimals": 3
+        },
+        "b": false,
+        "p": "3000",
+        "r": false,
+        "s": "0.01",
+        "t": {
+          "limit": {
+            "tif": "Gtc"
+          }
+        }
+      }
+    ],
+    "type": "order"
+  },
+  "codexMetadata": {
+    "codexType": "x402Drop",
+    "sealDigest": "3e462a2ba1ccc4bc43e0db7b4b905bd799fa5df7c2bb19fdde31e8b31cfde0ef",
+    "sealSignature": "0x0763e334dc0425191c55a8469775c26a81805e38dba0e9f9632e912f189e492272d81785d3db1805e7acdfeb1588d95e829249dd6e3572dff13db46d37372ae51b",
+    "signer": "0xC145037363FD314EF211C09d7E571286620EC034",
+    "timestamp": 1769286757
+  },
+  "extensions": {
+    "facilitatorFees": {
+      "info": {
+        "options": [
+          {
+            "facilitatorFeeQuote": {
+              "asset": "0x0000000000000000000000000000000000000000",
+              "expiry": 1768539304,
+              "facilitatorAddress": "0xC145037363FD314EF211C09d7E571286620EC034",
+              "flatFee": "30000000000000000",
+              "maxFee": "30000000000000000",
+              "minFee": "30000000000000000",
+              "model": "flat",
+              "quoteDigest": "02c23c731681e7f04e409b68633cffa6603489f6ca37cba3377a3785eab48d76",
+              "quoteId": "quote_demo_001",
+              "signature": "0xebc3406444d96686a875aee2396bc610c39821446f954252477d19036fac0e2c4f8fce6d262dd9a02dda70bef594bb6beebadea87160aaf9ebc9a4c059f98a891b",
+              "signatureScheme": "eip191"
+            },
+            "facilitatorId": "https://solarakin.org/facilitators/x402"
+          }
+        ],
+        "version": "1"
+      }
+    }
+  },
+  "resource": {
+    "description": "Premium data endpoint",
+    "mimeType": "application/json",
+    "url": "https://api.example.com/data"
+  },
+  "x402Version": 2
+}
+{
+  "x402Version": 2,
+  "resource": {
+    "url": "https://api.example.com/data",
+    "description": "Premium data endpoint",
+    "mimeType": "application/json"
+  },
+  "action": {
+    "type": "order",
+    "orders": [
+      {
+        "a": {
+          "name": "ETH",
+          "asset": 0,
+          "sz_decimals": 3
+        },
+        "b": false,
+        "p": "3000",
+        "s": "0.01",
+        "r": false,
+        "t": {
+          "limit": {
+            "tif": "Gtc"
+          }
+        }
+      }
+    ],
+    "grouping": "na"
+  },
+  "extensions": {
+    "facilitatorFees": {
+      "info": {
+        "version": "1",
+        "options": [
+          {
+            "facilitatorId": "https://solarakin.org/facilitators/x402",
+            "facilitatorFeeQuote": {
+              "quoteId": "quote_demo_001",
+              "model": "flat",
+              "asset": "0x0000000000000000000000000000000000000000",
+              "flatFee": "30000000000000000",
+              "minFee": "30000000000000000",
+              "maxFee": "30000000000000000",
+              "expiry": 1768539304
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+#!/usr/bin/env python3
+"""
+Seal a Codex payload and facilitatorFees extension.
+
+- Codex seal covers entire payload (excluding codexMetadata)
+- FacilitatorFeeQuote seal covers only the quote object
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import time
+from hashlib import sha256
+from pathlib import Path
+from typing import Any
+
+from eth_account import Account
+from eth_account.messages import encode_defunct
+
+
+# ---------------------------------------------------------------------
+# Canonical exclusion rules (MUST MATCH verifier)
+# ---------------------------------------------------------------------
+CODEX_EXCLUDED = {
+    "codexMetadata",
+    "extensions",
+    "sealDigest",
+    "sealSignature",
+    "signature",
+    "signatureScheme",
+}
+
+FEE_QUOTE_EXCLUDED = {
+    "signature",
+    "signatureScheme",
+    "quoteDigest",
+    "facilitatorAddress",
+    "quoteId"   
+}
+
+
+# ---------------------------------------------------------------------
+# Canonical helpers
+# ---------------------------------------------------------------------
+def strip_fields(v: Any, excluded: set[str]) -> Any:
+    if isinstance(v, dict):
+        return {k: strip_fields(val, excluded) for k, val in v.items() if k not in excluded}
+    if isinstance(v, list):
+        return [strip_fields(x, excluded) for x in v]
+    return v
+
+
+def canonical_json(v: Any) -> str:
+    return json.dumps(v, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def sha(v: Any) -> str:
+    return sha256(canonical_json(v).encode("utf-8")).hexdigest()
+
+
+def sign(digest: str, key: str):
+    acct = Account.from_key(key[2:] if key.startswith("0x") else key)
+    msg = encode_defunct(hexstr=digest)
+    sig = acct.sign_message(msg).signature.hex()
+    if not sig.startswith("0x"):
+        sig = "0x" + sig
+    return acct.address, sig
+
+
+def load_key(path: Path | None, inline: str | None) -> str:
+    if inline:
+        return inline.strip()
+    if path:
+        return path.read_text().strip()
+    env = os.environ.get("X402_PRIVATE_KEY")
+    if env:
+        return env.strip()
+    raise SystemExit("Missing private key")
+
+
+# ---------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("input")
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--private-key")
+    ap.add_argument("--private-key-file", type=Path)
+    ap.add_argument("--codex-type", default="x402Drop")
+    args = ap.parse_args()
+
+    payload = json.loads(Path(args.input).read_text())
+    key = load_key(args.private_key_file, args.private_key)
+
+    # --------------------------------------------------
+    # Codex seal (SNAPSHOT — no mutation drift)
+    # --------------------------------------------------
+    codex_snapshot = strip_fields(
+        json.loads(json.dumps(payload)),  # deep copy
+        CODEX_EXCLUDED,
+    )
+    codex_digest = sha(codex_snapshot)
+
+    # One-line invariant guard
+    assert codex_digest == sha(codex_snapshot), "Codex canonicalization drift"
+
+    codex_addr, codex_sig = sign(codex_digest, key)
+    payload["codexMetadata"] = {
+        "sealDigest": codex_digest,
+        "sealSignature": codex_sig,
+        "timestamp": int(time.time()),
+        "codexType": args.codex_type,
+        "signer": codex_addr,
+    }
+
+    # --------------------------------------------------
+    # FacilitatorFeeQuote seal(s)
+    # --------------------------------------------------
+    options = (
+        payload.get("extensions", {})
+        .get("facilitatorFees", {})
+        .get("info", {})
+        .get("options", [])
+    )
+
+    sealed_quotes = 0
+
+    for opt in options:
+        quote = opt.get("facilitatorFeeQuote")
+        if not isinstance(quote, dict):
+            continue
+
+        quote_snapshot = strip_fields(
+            json.loads(json.dumps(quote)),  # deep copy
+            FEE_QUOTE_EXCLUDED,
+        )
+        quote_digest = sha(quote_snapshot)
+
+        # One-line invariant guard
+        assert quote_digest == sha(quote_snapshot), "Fee quote canonicalization drift"
+
+        addr, sig = sign(quote_digest, key)
+        quote.update(
+            {
+                "quoteDigest": quote_digest,
+                "signature": sig,
+                "facilitatorAddress": addr,
+                "signatureScheme": "eip191",
+            }
+        )
+        sealed_quotes += 1
+
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+    print("[✓] Codex sealed:", codex_digest)
+    print("[✓] FacilitatorFeeQuote(s) sealed:", sealed_quotes)
+
+
+if __name__ == "__main__":
+    main()
+#!/usr/bin/env python3
+"""Verify Codex + facilitatorFees seals."""
+
+from __future__ import annotations
+
+import argparse
+import json
+from hashlib import sha256
+from pathlib import Path
+from typing import Any
+
+from eth_account import Account
+from eth_account.messages import encode_defunct
+
+
+CODEX_EXCLUDED = {
+    "codexMetadata",
+    "extensions",
+    "sealDigest",
+    "sealSignature",
+    "signature",
+    "signatureScheme",
+}
+
+FEE_QUOTE_EXCLUDED = {
+    "signature",
+    "signatureScheme",
+    "quoteDigest", 
+    "facilitatorAddress", 
+    "quoteId"
+}
+
+
+def strip_fields(v: Any, excluded: set[str]) -> Any:
+    if isinstance(v, dict):
+        return {k: strip_fields(val, excluded) for k, val in v.items() if k not in excluded}
+    if isinstance(v, list):
+        return [strip_fields(x, excluded) for x in v]
+    return v
+
+
+def sha(v: Any) -> str:
+    return sha256(
+        json.dumps(v, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+
+
+def recover(digest: str, sig: str) -> str:
+    msg = encode_defunct(hexstr=digest)
+    return Account.recover_message(msg, signature=sig)
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("input")
+    ap.add_argument("--expected-signer")
+    args = ap.parse_args()
+
+    payload = json.loads(Path(args.input).read_text())
+
+    # --------------------------------------------------
+    # Verify Codex seal
+    # --------------------------------------------------
+    md = payload.get("codexMetadata", {})
+    stripped = strip_fields(payload, CODEX_EXCLUDED)
+    computed = sha(stripped)
+
+    assert computed == sha(stripped), "Codex canonicalization drift"
+
+    if computed != md.get("sealDigest"):
+        raise SystemExit("Codex digest mismatch")
+
+    recovered = recover(computed, md["sealSignature"])
+    if args.expected_signer and recovered.lower() != args.expected_signer.lower():
+        raise SystemExit("Codex signer mismatch")
+
+    print("[✓] Codex verified:", recovered)
+
+    # --------------------------------------------------
+    # Verify facilitator fee quotes
+    # --------------------------------------------------
+    options = (
+        payload.get("extensions", {})
+        .get("facilitatorFees", {})
+        .get("info", {})
+        .get("options", [])
+    )
+
+    for opt in options:
+        quote = opt.get("facilitatorFeeQuote")
+        if not isinstance(quote, dict):
+            continue
+
+        stripped_q = strip_fields(quote, FEE_QUOTE_EXCLUDED)
+        computed_q = sha(stripped_q)
+
+        assert computed_q == sha(stripped_q), "Fee quote canonicalization drift"
+
+        if computed_q != quote.get("quoteDigest"):
+            raise SystemExit("Fee quote digest mismatch")
+
+        recovered_q = recover(computed_q, quote["signature"])
+        if recovered_q.lower() != quote["facilitatorAddress"].lower():
+            raise SystemExit("Fee quote signer mismatch")
+
+        print("[✓] Fee quote verified:", recovered_q)
+
+    print("[✓] All seals verified")
+
+
+if __name__ == "__main__":
+    main()
+#!/usr/bin/env python3
+"""Create a batch payload from Codex drop files for submission workflows."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import pathlib
+import time
+from typing import Any, Iterable
+
+
+def _expand_paths(paths: Iterable[str]) -> list[pathlib.Path]:
+    expanded: list[pathlib.Path] = []
+    for raw in paths:
+        path = pathlib.Path(raw)
+        if path.is_dir():
+            expanded.extend(sorted(path.rglob("*.json")))
+        else:
+            expanded.append(path)
+    return expanded
+
+
+def _load_json(path: pathlib.Path) -> Any:
+    with path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def build_batch(paths: Iterable[pathlib.Path], *, source: str) -> dict[str, Any]:
+    items = []
+    for path in paths:
+        items.append(
+            {
+                "path": str(path),
+                "payload": _load_json(path),
+            }
+        )
+    return {
+        "batchSource": source,
+        "batchTimestamp": int(time.time()),
+        "batchCount": len(items),
+        "items": items,
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Build a Codex batch payload.")
+    parser.add_argument(
+        "inputs",
+        nargs="+",
+        help="JSON files or directories to include in the batch payload.",
+    )
+    parser.add_argument(
+        "--source",
+        default="CodexGigaDrop",
+        help="Source label to attach to the batch payload.",
+    )
+    parser.add_argument("--out", help="Write the batch payload to this JSON file.")
+    args = parser.parse_args()
+
+    paths = _expand_paths(args.inputs)
+    if not paths:
+        raise SystemExit("No JSON inputs found to batch.")
+
+    batch = build_batch(paths, source=args.source)
+    output = json.dumps(batch, indent=2, sort_keys=True)
+    if args.out:
+        out_path = pathlib.Path(args.out)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(output + "\n", encoding="utf-8")
+        print(f"Wrote batch payload with {len(paths)} items to {out_path}")
+    else:
+        print(output)
+
+
+if __name__ == "__main__":
+    main()

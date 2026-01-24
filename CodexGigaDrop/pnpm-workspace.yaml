@@ -1,0 +1,7 @@
+packages:
+  - "scripts/sei-x402"
+  - "scripts/sei-x402/typescript"
+  - "scripts/sei-x402/python"
+  - "scripts/sei-x402/go"
+  - "codex"
+  - "scripts"

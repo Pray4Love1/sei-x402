@@ -1,13 +1,51 @@
 {
-  "dropId": "drop_001",
-  "network": "sei-testnet",
-  "asset": "USDC",
-  "amount": "1000000",
-  "payTo": "0x0000000000000000000000000000000000000000",
-  "resource": "https://example.com/resource",
-  "expiresAt": 1737400000,
-  "metadata": {
-    "campaign": "codex-gigadrop-demo",
-    "batch": 1
+  "x402Version": 2,
+  "resource": {
+    "url": "https://api.example.com/data",
+    "description": "Premium data endpoint",
+    "mimeType": "application/json"
+  },
+  "action": {
+    "type": "order",
+    "orders": [
+      {
+        "a": {
+          "name": "ETH",
+          "asset": 0,
+          "sz_decimals": 3
+        },
+        "b": false,
+        "p": "3000",
+        "s": "0.01",
+        "r": false,
+        "t": {
+          "limit": {
+            "tif": "Gtc"
+          }
+        }
+      }
+    ],
+    "grouping": "na"
+  },
+  "extensions": {
+    "facilitatorFees": {
+      "info": {
+        "version": "1",
+        "options": [
+          {
+            "facilitatorId": "https://solarakin.org/facilitators/x402",
+            "facilitatorFeeQuote": {
+              "quoteId": "quote_demo_001",
+              "model": "flat",
+              "asset": "0x0000000000000000000000000000000000000000",
+              "flatFee": "30000000000000000",
+              "minFee": "30000000000000000",
+              "maxFee": "30000000000000000",
+              "expiry": 1768539304
+            }
+          }
+        ]
+      }
+    }
   }
 }

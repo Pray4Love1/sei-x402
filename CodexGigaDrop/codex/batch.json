@@ -1,0 +1,144 @@
+{
+  "batchCount": 4,
+  "batchSource": "CodexGigaDrop",
+  "batchTimestamp": 1769281885,
+  "items": [
+    {
+      "path": "exact-flow/doc1.codex.json",
+      "payload": {
+        "author": "Pray4Love1",
+        "body": "This is a test payload.",
+        "title": "Sample Codex Doc 1",
+        "type": "codex_proof"
+      }
+    },
+    {
+      "path": "exact-flow/doc2.codex.json",
+      "payload": {
+        "author": "Pray4Love1",
+        "body": "Second test payload.",
+        "title": "Sample Codex Doc 2",
+        "type": "codex_proof"
+      }
+    },
+    {
+      "path": "exact-flow/handoff.codex.json",
+      "payload": {
+        "action": {
+          "grouping": "na",
+          "orders": [
+            {
+              "a": {
+                "asset": 0,
+                "name": "ETH",
+                "sz_decimals": 3
+              },
+              "b": false,
+              "p": "3000",
+              "r": false,
+              "s": "0.01",
+              "t": {
+                "limit": {
+                  "tif": "Gtc"
+                }
+              }
+            }
+          ],
+          "type": "order"
+        },
+        "codexMetadata": {
+          "codexType": "x402Drop",
+          "sealDigest": "3e462a2ba1ccc4bc43e0db7b4b905bd799fa5df7c2bb19fdde31e8b31cfde0ef",
+          "sealSignature": "0x0763e334dc0425191c55a8469775c26a81805e38dba0e9f9632e912f189e492272d81785d3db1805e7acdfeb1588d95e829249dd6e3572dff13db46d37372ae51b",
+          "signer": "0xC145037363FD314EF211C09d7E571286620EC034",
+          "timestamp": 1769281813
+        },
+        "extensions": {
+          "facilitatorFees": {
+            "info": {
+              "options": [
+                {
+                  "facilitatorFeeQuote": {
+                    "asset": "0x0000000000000000000000000000000000000000",
+                    "expiry": 1768539304,
+                    "facilitatorAddress": "0xC145037363FD314EF211C09d7E571286620EC034",
+                    "flatFee": "30000000000000000",
+                    "maxFee": "30000000000000000",
+                    "minFee": "30000000000000000",
+                    "model": "flat",
+                    "quoteDigest": "02c23c731681e7f04e409b68633cffa6603489f6ca37cba3377a3785eab48d76",
+                    "quoteId": "quote_demo_001",
+                    "signature": "0xebc3406444d96686a875aee2396bc610c39821446f954252477d19036fac0e2c4f8fce6d262dd9a02dda70bef594bb6beebadea87160aaf9ebc9a4c059f98a891b",
+                    "signatureScheme": "eip191"
+                  },
+                  "facilitatorId": "https://solarakin.org/facilitators/x402"
+                }
+              ],
+              "version": "1"
+            }
+          }
+        },
+        "resource": {
+          "description": "Premium data endpoint",
+          "mimeType": "application/json",
+          "url": "https://api.example.com/data"
+        },
+        "x402Version": 2
+      }
+    },
+    {
+      "path": "exact-flow/handoff.json",
+      "payload": {
+        "action": {
+          "grouping": "na",
+          "orders": [
+            {
+              "a": {
+                "asset": 0,
+                "name": "ETH",
+                "sz_decimals": 3
+              },
+              "b": false,
+              "p": "3000",
+              "r": false,
+              "s": "0.01",
+              "t": {
+                "limit": {
+                  "tif": "Gtc"
+                }
+              }
+            }
+          ],
+          "type": "order"
+        },
+        "extensions": {
+          "facilitatorFees": {
+            "info": {
+              "options": [
+                {
+                  "facilitatorFeeQuote": {
+                    "asset": "0x0000000000000000000000000000000000000000",
+                    "expiry": 1768539304,
+                    "flatFee": "30000000000000000",
+                    "maxFee": "30000000000000000",
+                    "minFee": "30000000000000000",
+                    "model": "flat",
+                    "quoteId": "quote_demo_001"
+                  },
+                  "facilitatorId": "https://solarakin.org/facilitators/x402"
+                }
+              ],
+              "version": "1"
+            }
+          }
+        },
+        "resource": {
+          "description": "Premium data endpoint",
+          "mimeType": "application/json",
+          "url": "https://api.example.com/data"
+        },
+        "x402Version": 2
+      }
+    }
+  ]
+}
