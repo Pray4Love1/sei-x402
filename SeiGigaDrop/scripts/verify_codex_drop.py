@@ -1,4 +1,3 @@
-verify_codex_drop.py
 #!/usr/bin/env python3
 """Verify Codex + facilitatorFees seals."""
 
@@ -107,7 +106,6 @@ def main() -> None:
         print("[✓] Fee quote verified:", recovered_q)
 
     print("[✓] All seals verified")
-
 
 if __name__ == "__main__":
     main()
