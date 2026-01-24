@@ -1,3 +1,4 @@
+verify_codex_drop.py
 #!/usr/bin/env python3
 """Verify Codex + facilitatorFees seals."""
 
@@ -9,19 +10,10 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
-import importlib.util
-
-if importlib.util.find_spec("eth_account") is None:
-    raise SystemExit(
-        "Missing dependency: eth-account. Install with `python -m pip install eth-account`."
-    )
-
 from eth_account import Account
 from eth_account.messages import encode_defunct
 
-# ---------------------------------------------------------------------
-# Canonical exclusion rules (MUST MATCH signer)
-# ---------------------------------------------------------------------
+
 CODEX_EXCLUDED = {
     "codexMetadata",
     "extensions",
@@ -34,32 +26,29 @@ CODEX_EXCLUDED = {
 FEE_QUOTE_EXCLUDED = {
     "signature",
     "signatureScheme",
-    "quoteDigest",
-    "facilitatorAddress",
-    "quoteId",
+    "quoteDigest", 
+    "facilitatorAddress", 
+    "quoteId"
 }
 
 
-def strip_fields(value: Any, excluded: set[str]) -> Any:
-    if isinstance(value, dict):
-        return {key: strip_fields(val, excluded) for key, val in value.items() if key not in excluded}
-    if isinstance(value, list):
-        return [strip_fields(item, excluded) for item in value]
-    return value
+def strip_fields(v: Any, excluded: set[str]) -> Any:
+    if isinstance(v, dict):
+        return {k: strip_fields(val, excluded) for k, val in v.items() if k not in excluded}
+    if isinstance(v, list):
+        return [strip_fields(x, excluded) for x in v]
+    return v
 
 
-def sha(payload: Any) -> str:
+def sha(v: Any) -> str:
     return sha256(
-        json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+        json.dumps(v, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     ).hexdigest()
 
 
 def recover(digest: str, sig: str) -> str:
-    if not sig:
-        raise SystemExit("Missing signature on sealed payload.")
-    signature = sig if sig.startswith("0x") else f"0x{sig}"
     msg = encode_defunct(hexstr=digest)
-    return Account.recover_message(msg, signature=signature)
+    return Account.recover_message(msg, signature=sig)
 
 
 def main() -> None:
@@ -82,7 +71,7 @@ def main() -> None:
     if computed != md.get("sealDigest"):
         raise SystemExit("Codex digest mismatch")
 
-    recovered = recover(computed, md.get("sealSignature"))
+    recovered = recover(computed, md["sealSignature"])
     if args.expected_signer and recovered.lower() != args.expected_signer.lower():
         raise SystemExit("Codex signer mismatch")
 
@@ -111,11 +100,8 @@ def main() -> None:
         if computed_q != quote.get("quoteDigest"):
             raise SystemExit("Fee quote digest mismatch")
 
-        recovered_q = recover(computed_q, quote.get("signature"))
-        facilitator_address = quote.get("facilitatorAddress")
-        if not facilitator_address:
-            raise SystemExit("Fee quote missing facilitatorAddress")
-        if recovered_q.lower() != facilitator_address.lower():
+        recovered_q = recover(computed_q, quote["signature"])
+        if recovered_q.lower() != quote["facilitatorAddress"].lower():
             raise SystemExit("Fee quote signer mismatch")
 
         print("[✓] Fee quote verified:", recovered_q)
