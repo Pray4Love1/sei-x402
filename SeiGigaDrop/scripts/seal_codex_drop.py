@@ -160,5 +160,6 @@ def main() -> None:
     print("[✓] Codex sealed:", codex_digest)
     print("[✓] FacilitatorFeeQuote(s) sealed:", sealed_quotes)
 
+
 if __name__ == "__main__":
     main()
