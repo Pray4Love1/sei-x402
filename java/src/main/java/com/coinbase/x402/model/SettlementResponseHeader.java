@@ -1,6 +1,7 @@
 package com.coinbase.x402.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import java.util.Map;
 
 /**
  * Settlement response header that gets base64-encoded into X-PAYMENT-RESPONSE.
@@ -19,15 +20,30 @@ public class SettlementResponseHeader {
     
     /** Wallet address of the person who made the payment (can be null). */
     public String payer;
+
+    /** Optional extensions attached to the settlement response. */
+    public Map<String, Object> extensions;
     
     /** Default constructor for Jackson. */
     public SettlementResponseHeader() {}
     
     /** Constructor with all fields. */
-    public SettlementResponseHeader(boolean success, String transaction, String network, String payer) {
+    public SettlementResponseHeader(
+        boolean success,
+        String transaction,
+        String network,
+        String payer,
+        Map<String, Object> extensions
+    ) {
         this.success = success;
         this.transaction = transaction;
         this.network = network;
         this.payer = payer;
+        this.extensions = extensions;
+    }
+
+    /** Backwards-compatible constructor without extensions. */
+    public SettlementResponseHeader(boolean success, String transaction, String network, String payer) {
+        this(success, transaction, network, payer, null);
     }
 }

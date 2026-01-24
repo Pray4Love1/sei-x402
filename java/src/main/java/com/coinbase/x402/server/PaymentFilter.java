@@ -216,7 +216,8 @@ public class PaymentFilter implements Filter {
             true,
             sr.txHash != null ? sr.txHash : "",
             sr.networkId != null ? sr.networkId : "",
-            payer
+            payer,
+            sr.extensions
         );
         
         String jsonString = Json.MAPPER.writeValueAsString(settlementHeader);
