@@ -16,15 +16,9 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
-import importlib.util
-
-if importlib.util.find_spec("eth_account") is None:
-    raise SystemExit(
-        "Missing dependency: eth-account. Install with `python -m pip install eth-account`."
-    )
-
 from eth_account import Account
 from eth_account.messages import encode_defunct
+
 
 # ---------------------------------------------------------------------
 # Canonical exclusion rules (MUST MATCH verifier)
@@ -43,30 +37,30 @@ FEE_QUOTE_EXCLUDED = {
     "signatureScheme",
     "quoteDigest",
     "facilitatorAddress",
-    "quoteId",
+    "quoteId"   
 }
 
 
 # ---------------------------------------------------------------------
 # Canonical helpers
 # ---------------------------------------------------------------------
-def strip_fields(value: Any, excluded: set[str]) -> Any:
-    if isinstance(value, dict):
-        return {key: strip_fields(val, excluded) for key, val in value.items() if key not in excluded}
-    if isinstance(value, list):
-        return [strip_fields(item, excluded) for item in value]
-    return value
+def strip_fields(v: Any, excluded: set[str]) -> Any:
+    if isinstance(v, dict):
+        return {k: strip_fields(val, excluded) for k, val in v.items() if k not in excluded}
+    if isinstance(v, list):
+        return [strip_fields(x, excluded) for x in v]
+    return v
 
 
-def canonical_json(payload: Any) -> str:
-    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+def canonical_json(v: Any) -> str:
+    return json.dumps(v, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
-def sha(payload: Any) -> str:
-    return sha256(canonical_json(payload).encode("utf-8")).hexdigest()
+def sha(v: Any) -> str:
+    return sha256(canonical_json(v).encode("utf-8")).hexdigest()
 
 
-def sign(digest: str, key: str) -> tuple[str, str]:
+def sign(digest: str, key: str):
     acct = Account.from_key(key[2:] if key.startswith("0x") else key)
     msg = encode_defunct(hexstr=digest)
     sig = acct.sign_message(msg).signature.hex()
