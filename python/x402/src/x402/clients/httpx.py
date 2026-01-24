@@ -67,13 +67,12 @@ class HttpxHooks:
                 response.headers = retry_response.headers
                 response._content = retry_response._content
                 return response
-
         except PaymentError as e:
-            self._is_retry = False
             raise e
         except Exception as e:
-            self._is_retry = False
             raise PaymentError(f"Failed to handle payment: {str(e)}") from e
+        finally:
+            self._is_retry = False
 
 
 def x402_payment_hooks(

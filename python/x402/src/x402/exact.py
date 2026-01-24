@@ -57,8 +57,15 @@ def sign_payment_header(
     """Sign a payment header using the account's private key."""
     try:
         auth = header["payload"]["authorization"]
-
-        nonce_bytes = bytes.fromhex(auth["nonce"])
+        auth_nonce = auth["nonce"]
+        if isinstance(auth_nonce, (bytes, bytearray)):
+            nonce_bytes = bytes(auth_nonce)
+            nonce_hex = nonce_bytes.hex()
+        elif isinstance(auth_nonce, str):
+            nonce_hex = auth_nonce[2:] if auth_nonce.startswith("0x") else auth_nonce
+            nonce_bytes = bytes.fromhex(nonce_hex)
+        else:
+            raise TypeError("Authorization nonce must be bytes or a hex string.")
 
         typed_data = {
             "types": {
@@ -99,7 +106,7 @@ def sign_payment_header(
 
         header["payload"]["signature"] = signature
 
-        header["payload"]["authorization"]["nonce"] = f"0x{auth['nonce']}"
+        header["payload"]["authorization"]["nonce"] = f"0x{nonce_hex}"
 
         encoded = encode_payment(header)
         return encoded
