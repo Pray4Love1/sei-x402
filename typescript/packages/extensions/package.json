@@ -1,0 +1,20 @@
+{
+  "name": "@x402/extensions",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sign-quote": "tsx dev-utils/sign_quote.ts",
+    "verify-quote": "tsx dev-utils/verify_quote.ts",
+    "payment-required": "tsx dev-utils/payment_required.ts"
+  },
+  "dependencies": {
+    "ethers": "^6.13.4",
+    "json-canonicalize": "^1.0.6",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

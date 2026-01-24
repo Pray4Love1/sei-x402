@@ -1,0 +1,7 @@
+.env
+__pycache__/
+*.pyc
+*.log
+attribution.key
+codex_drop_sealed.json
+*.codex.json
