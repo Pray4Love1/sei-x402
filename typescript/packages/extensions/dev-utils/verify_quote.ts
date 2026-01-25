@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { createHash, createPublicKey, verify as verifyMessage } from "node:crypto";
 import { argv, exit } from "node:process";
-
 import { getCanonicalQuotePayload } from "../src/facilitator-fees";
 import type { FacilitatorFeeQuote } from "../src/facilitator-fees";
 
@@ -30,14 +29,15 @@ if (quote.signatureScheme !== "ed25519") {
 
 const signatureHex = quote.signature.startsWith("0x") ? quote.signature.slice(2) : quote.signature;
 const signature = Buffer.from(signatureHex, "hex");
+
 const canonicalPayload = getCanonicalQuotePayload(quote);
 const payloadHash = createHash("sha256").update(canonicalPayload).digest();
 
 const valid = verifyMessage(
-  null,
+  "Ed25519",
   payloadHash,
   createPublicKey(publicKeyPem),
-  signature,
+  signature
 );
 
 if (!valid) {
