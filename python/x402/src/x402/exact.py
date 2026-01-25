@@ -23,6 +23,7 @@ def prepare_payment_header(
 ) -> Dict[str, Any]:
     """Prepare an unsigned payment header with sender address, x402 version, and payment requirements."""
     nonce = create_nonce()
+    nonce_hex = f"0x{nonce.hex()}"
     valid_after = str(int(time.time()) - 60)  # 60 seconds before
     valid_before = str(int(time.time()) + payment_requirements.max_timeout_seconds)
 
@@ -38,7 +39,7 @@ def prepare_payment_header(
                 "value": payment_requirements.max_amount_required,
                 "validAfter": valid_after,
                 "validBefore": valid_before,
-                "nonce": nonce,
+                "nonce": nonce_hex,
             },
         },
     }

@@ -24,10 +24,13 @@ class HttpxHooks:
 
         # If this is not a 402, just return the response
         if response.status_code != 402:
+            if self._is_retry:
+                self._is_retry = False
             return response
 
         # If this is a retry response, just return it
         if self._is_retry:
+            self._is_retry = False
             return response
 
         try:
