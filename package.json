@@ -1,7 +1,4 @@
 {
   "private": true,
-  "packageManager": "pnpm@10.7.0",
-  "devDependencies": {
-    "jest": "^30.2.0"
-  }
+  "packageManager": "pnpm@10.7.0"
 }
