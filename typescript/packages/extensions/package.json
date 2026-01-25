@@ -16,6 +16,7 @@
     "lint": "eslint . --ext .ts --fix",
     "lint:check": "eslint . --ext .ts"
   }
+}
   "keywords": [
     "x402",
     "payment",
