@@ -17,7 +17,7 @@ importers:
       '@coinbase/cdp-sdk':
         specifier: ^1.1.1
         version: 1.18.0(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)
-      '@sei-js/x402':
+      'x402':
         specifier: workspace:^
         version: link:../x402
       viem:
@@ -142,7 +142,7 @@ importers:
 
   typescript/packages/x402-axios:
     dependencies:
-      '@sei-js/x402':
+      'x402':
         specifier: workspace:^
         version: link:../x402
       axios:
@@ -203,7 +203,7 @@ importers:
 
   typescript/packages/x402-express:
     dependencies:
-      '@sei-js/x402':
+      'x402':
         specifier: workspace:^
         version: link:../x402
       express:
@@ -267,7 +267,7 @@ importers:
 
   typescript/packages/x402-fetch:
     dependencies:
-      '@sei-js/x402':
+      'x402':
         specifier: workspace:^
         version: link:../x402
       viem:
@@ -325,7 +325,7 @@ importers:
 
   typescript/packages/x402-hono:
     dependencies:
-      '@sei-js/x402':
+      'x402':
         specifier: workspace:^
         version: link:../x402
       hono:
@@ -386,7 +386,7 @@ importers:
 
   typescript/packages/x402-next:
     dependencies:
-      '@sei-js/x402':
+      'x402':
         specifier: workspace:^
         version: link:../x402
       next:
@@ -450,10 +450,10 @@ importers:
       '@heroicons/react':
         specifier: ^2.2.0
         version: 2.2.0(react@19.1.0)
-      '@sei-js/x402':
+      'x402':
         specifier: workspace:^
         version: link:../packages/x402
-      '@sei-js/x402-next':
+      'x402-next':
         specifier: workspace:^
         version: link:../packages/x402-next
       next:

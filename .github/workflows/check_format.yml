@@ -14,12 +14,11 @@ jobs:
         with:
           node-version: "20"
           cache: "pnpm"
-          cache-dependency-path: ./typescript
+          cache-dependency-path: pnpm-lock.yaml
       - name: Ensure formatting
-        working-directory: ./typescript
         run: |
           pnpm install --frozen-lockfile
-          pnpm format:check
+          pnpm -C typescript format:check
 
   check-format-examples-typescript:
     runs-on: ubuntu-latest
