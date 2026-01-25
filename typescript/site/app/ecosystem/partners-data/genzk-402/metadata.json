@@ -1,0 +1,7 @@
+{
+  "name": "GenZK-402",
+  "description": "GenZK-402 is a universal x402-compatible payment protocol enabling cryptographically enforced settlement, attribution, and access control for agents, applications, and sovereign systems.",
+  "logoUrl": "/logos/genzk-402.png",
+  "websiteUrl": "https://gen-zk-402.base44.app",
+  "category": "Services/Endpoints"
+}
