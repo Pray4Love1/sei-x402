@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync } from "node:fs";
-import { createPrivateKey, sign as signMessage } from "node:crypto";
+import { createHash, createPrivateKey, sign as signMessage } from "node:crypto";
 import { argv, exit } from "node:process";
 
 import { getCanonicalQuotePayload } from "../src/facilitator-fees";
@@ -32,7 +32,8 @@ if (!privateKeyPem) {
 const quote = JSON.parse(readFileSync(inputPath, "utf-8")) as FacilitatorFeeQuote;
 
 const canonicalPayload = getCanonicalQuotePayload(quote);
-const signatureBytes = signMessage(null, Buffer.from(canonicalPayload), createPrivateKey(privateKeyPem));
+const payloadHash = createHash("sha256").update(canonicalPayload).digest();
+const signatureBytes = signMessage(null, payloadHash, createPrivateKey(privateKeyPem));
 
 const signedQuote: FacilitatorFeeQuote = {
   ...quote,
