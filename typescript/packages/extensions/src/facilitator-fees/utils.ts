@@ -15,7 +15,7 @@ export function stripQuoteForSigning(quote: FacilitatorFeeQuote): Record<string,
 }
 
 export function calculateBpsFee(quote: FacilitatorFeeQuote, paymentAmount: string): string {
-  if (!quote.bps) {
+  if (quote.bps === undefined) {
     throw new Error("Quote bps is required for BPS fee calculation.");
   }
 
