@@ -24,11 +24,10 @@ class HttpxHooks:
 
         # If this is not a 402, just return the response
         if response.status_code != 402:
-            if self._is_retry:
-                self._is_retry = False
+            self._is_retry = False
             return response
 
-        # If this is a retry response, just return it
+        # If already retried once, avoid infinite loop
         if self._is_retry:
             self._is_retry = False
             return response
@@ -37,9 +36,7 @@ class HttpxHooks:
             if not response.request:
                 raise MissingRequestConfigError("Missing request configuration")
 
-            # Read the response content before parsing
             await response.aread()
-
             data = response.json()
 
             payment_response = x402PaymentRequiredResponse(**data)
@@ -54,10 +51,10 @@ class HttpxHooks:
                 selected_requirements, payment_response.x402_version
             )
 
-            # Mark as retry and add payment header
+            # Mark as retry and prepare request
             self._is_retry = True
-            request = response.request
 
+            request = response.request
             request.headers["X-Payment"] = payment_header
             request.headers["Access-Control-Expose-Headers"] = "X-Payment-Response"
 
@@ -65,11 +62,15 @@ class HttpxHooks:
             async with AsyncClient() as client:
                 retry_response = await client.send(request)
 
-                # Copy the retry response data to the original response
-                response.status_code = retry_response.status_code
-                response.headers = retry_response.headers
-                response._content = retry_response._content
-                return response
+            # ✅ Successful retry, reset retry flag
+            self._is_retry = False
+
+            # Overwrite the original response with retry result
+            response.status_code = retry_response.status_code
+            response.headers = retry_response.headers
+            response._content = retry_response._content
+            return response
+
         except PaymentError as e:
             raise e
         except Exception as e:
@@ -95,17 +96,14 @@ def x402_payment_hooks(
     Returns:
         Dictionary of event hooks that can be directly assigned to client.event_hooks
     """
-    # Create x402Client
     client = x402Client(
         account,
         max_value=max_value,
         payment_requirements_selector=payment_requirements_selector,
     )
 
-    # Create hooks
     hooks = HttpxHooks(client)
 
-    # Return event hooks dictionary
     return {
         "request": [hooks.on_request],
         "response": [hooks.on_response],
@@ -132,7 +130,8 @@ class x402HttpxClient(AsyncClient):
                 and returns a PaymentRequirements object.
             **kwargs: Additional arguments to pass to AsyncClient
         """
-        super().__init__(**kwargs)
-        self.event_hooks = x402_payment_hooks(
+        hooks = x402_payment_hooks(
             account, max_value, payment_requirements_selector
         )
+
+        super().__init__(event_hooks=hooks, **kwargs)
