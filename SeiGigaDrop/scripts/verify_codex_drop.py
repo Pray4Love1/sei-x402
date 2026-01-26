@@ -79,12 +79,19 @@ def main() -> None:
     # --------------------------------------------------
     # Verify facilitator fee quotes
     # --------------------------------------------------
+    if "facilitatorFeeQuote" in payload:
+        raise SystemExit(
+            "facilitatorFeeQuote must be nested under extensions.facilitatorFees.info.options"
+        )
+
     options = (
         payload.get("extensions", {})
         .get("facilitatorFees", {})
         .get("info", {})
         .get("options", [])
     )
+    if not isinstance(options, list):
+        raise SystemExit("facilitatorFees.info.options must be a list")
 
     for opt in options:
         quote = opt.get("facilitatorFeeQuote")
