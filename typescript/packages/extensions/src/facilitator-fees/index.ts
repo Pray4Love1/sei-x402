@@ -409,12 +409,10 @@ export function getCanonicalQuotePayload(quote: FacilitatorFeeQuote): string {
   payload.asset = quote.asset;
   if (quote.bps !== undefined) payload.bps = quote.bps;
   payload.expiry = quote.expiry;
-  payload.facilitatorAddress = quote.facilitatorAddress;
   if (quote.flatFee !== undefined) payload.flatFee = quote.flatFee;
   if (quote.maxFee !== undefined) payload.maxFee = quote.maxFee;
   if (quote.minFee !== undefined) payload.minFee = quote.minFee;
   payload.model = quote.model;
-  payload.quoteId = quote.quoteId;
 
   return JSON.stringify(payload);
 }
