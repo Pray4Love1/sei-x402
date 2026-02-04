@@ -3,14 +3,14 @@ import { signFacilitatorFeeQuote } from "../facilitator_fee_quote";
 
 export const facilitatorQuoteRouter = express.Router();
 
-facilitatorQuoteRouter.post("/facilitator/quote", (req, res) => {
+facilitatorQuoteRouter.post("/facilitator/quote", async (req, res) => {
   const { network, scheme, asset } = req.body;
 
   if (!network || scheme !== "exact" || !asset?.address) {
     return res.status(400).json({ error: "Invalid request" });
   }
 
-  const quote = signFacilitatorFeeQuote(
+  const quote = await signFacilitatorFeeQuote(
     {
       network,
       scheme,

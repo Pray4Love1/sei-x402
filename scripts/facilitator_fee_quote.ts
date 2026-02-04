@@ -1,4 +1,9 @@
-import { keccak256, encodeAbiParameters, recoverAddress } from "viem";
+import {
+  keccak256,
+  encodeAbiParameters,
+  hashMessage,
+  recoverAddress,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 export type FacilitatorFeeQuote = {
@@ -13,10 +18,10 @@ export type FacilitatorFeeQuote = {
   signature: `0x${string}`;
 };
 
-export function signFacilitatorFeeQuote(
+export async function signFacilitatorFeeQuote(
   params: Omit<FacilitatorFeeQuote, "signature">,
   privateKey: `0x${string}`,
-): FacilitatorFeeQuote {
+): Promise<FacilitatorFeeQuote> {
   const digest = keccak256(
     encodeAbiParameters(
       [
@@ -39,7 +44,7 @@ export function signFacilitatorFeeQuote(
   );
 
   const account = privateKeyToAccount(privateKey);
-  const signature = account.signMessage({ message: { raw: digest } });
+  const signature = await account.signMessage({ message: { raw: digest } });
 
   return { ...params, signature };
 }
@@ -74,7 +79,7 @@ export function verifyFacilitatorFeeQuote(
   );
 
   const recovered = recoverAddress({
-    hash: digest,
+    hash: hashMessage({ raw: digest }),
     signature: quote.signature,
   });
 
