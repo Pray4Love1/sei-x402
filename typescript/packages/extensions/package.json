@@ -1,6 +1,7 @@
 {
   "name": "@x402/extensions",
   "version": "2.2.0",
+  "type": "module",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/cjs/index.d.ts",
@@ -14,7 +15,8 @@
     "format:check": "prettier -c .prettierrc --check \"**/*.{ts,js,cjs,json,md}\"",
     "lint": "eslint . --ext .ts --fix",
     "lint:check": "eslint . --ext .ts"
-  },
+  }
+}
   "keywords": [
     "x402",
     "payment",
