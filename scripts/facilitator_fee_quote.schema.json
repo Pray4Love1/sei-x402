@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "required": ["network", "scheme", "asset", "maxGasFee", "expiry", "signature"],
+  "properties": {
+    "network": { "type": "string" },
+    "scheme": { "const": "exact" },
+    "asset": {
+      "type": "object",
+      "required": ["address", "decimals"],
+      "properties": {
+        "address": { "type": "string" },
+        "decimals": { "type": "number" }
+      }
+    },
+    "maxGasFee": { "type": "string" },
+    "expiry": { "type": "number" },
+    "signature": { "type": "string" }
+  }
+}
