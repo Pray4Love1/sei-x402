@@ -1,6 +1,7 @@
 from typing import Optional, Dict, List
 from httpx import Request, Response, AsyncClient
 from eth_account import Account
+
 from x402.clients.base import (
     x402Client,
     MissingRequestConfigError,
@@ -13,70 +14,83 @@ from x402.types import x402PaymentRequiredResponse
 class HttpxHooks:
     def __init__(self, client: x402Client):
         self.client = client
-        self._is_retry = False
 
     async def on_request(self, request: Request):
         """Handle request before it is sent."""
-        pass
+        # Nothing needed here for x402
+        return
 
     async def on_response(self, response: Response) -> Response:
         """Handle response after it is received."""
+        request = response.request
 
-        # If this is not a 402, just return the response
+        # Non-402 → just return
         if response.status_code != 402:
-            self._is_retry = False
+            if request:
+                request.extensions.pop("x402_is_retry", None)
             return response
 
-        # If already retried once, avoid infinite loop
-        if self._is_retry:
-            self._is_retry = False
+        if not request:
+            raise MissingRequestConfigError("Missing request configuration")
+
+        # Prevent infinite retry loops
+        if request.extensions.get("x402_is_retry"):
+            request.extensions.pop("x402_is_retry", None)
             return response
 
         try:
-            if not response.request:
-                raise MissingRequestConfigError("Missing request configuration")
-
+            # Ensure response body is fully read
             await response.aread()
             data = response.json()
 
             payment_response = x402PaymentRequiredResponse(**data)
 
-            # Select payment requirements
+            # Select acceptable payment requirements
             selected_requirements = self.client.select_payment_requirements(
                 payment_response.accepts
             )
 
-            # Create payment header
+            # Build payment header
             payment_header = self.client.create_payment_header(
-                selected_requirements, payment_response.x402_version
+                selected_requirements,
+                payment_response.x402_version,
             )
 
-            # Mark as retry and prepare request
-            self._is_retry = True
+            # Mark this request as a retry
+            request.extensions["x402_is_retry"] = True
 
-            request = response.request
-            request.headers["X-Payment"] = payment_header
-            request.headers["Access-Control-Expose-Headers"] = "X-Payment-Response"
+            # Clone request headers and add payment
+            headers = dict(request.headers)
+            headers["X-Payment"] = payment_header
+            headers["Access-Control-Expose-Headers"] = "X-Payment-Response"
 
-            # Retry the request
+            retry_request = Request(
+                method=request.method,
+                url=request.url,
+                headers=headers,
+                content=request.content,
+                extensions=request.extensions,
+            )
+
+            # Re-send request
             async with AsyncClient() as client:
-                retry_response = await client.send(request)
+                retry_response = await client.send(retry_request)
 
-            # ✅ Successful retry, reset retry flag
-            self._is_retry = False
-
-            # Overwrite the original response with retry result
+            # Replace original response contents
             response.status_code = retry_response.status_code
-            response.headers = retry_response.headers
-            response._content = retry_response._content
+            response.headers.clear()
+            response.headers.update(retry_response.headers)
+            response._content = retry_response.content
+
             return response
 
-        except PaymentError as e:
-            raise e
+        except PaymentError:
+            raise
         except Exception as e:
             raise PaymentError(f"Failed to handle payment: {str(e)}") from e
         finally:
-            self._is_retry = False
+            if request:
+                request.extensions.pop("x402_is_retry", None)
 
 
 def x402_payment_hooks(
@@ -84,17 +98,8 @@ def x402_payment_hooks(
     max_value: Optional[int] = None,
     payment_requirements_selector: Optional[PaymentSelectorCallable] = None,
 ) -> Dict[str, List]:
-    """Create httpx event hooks dictionary for handling 402 Payment Required responses.
-
-    Args:
-        account: eth_account.Account instance for signing payments
-        max_value: Optional maximum allowed payment amount in base units
-        payment_requirements_selector: Optional custom selector for payment requirements.
-            Should be a callable that takes (accepts, network_filter, scheme_filter, max_value)
-            and returns a PaymentRequirements object.
-
-    Returns:
-        Dictionary of event hooks that can be directly assigned to client.event_hooks
+    """
+    Create httpx event hooks for handling 402 Payment Required responses.
     """
     client = x402Client(
         account,
@@ -120,18 +125,10 @@ class x402HttpxClient(AsyncClient):
         payment_requirements_selector: Optional[PaymentSelectorCallable] = None,
         **kwargs,
     ):
-        """Initialize an AsyncClient with x402 payment handling.
-
-        Args:
-            account: eth_account.Account instance for signing payments
-            max_value: Optional maximum allowed payment amount in base units
-            payment_requirements_selector: Optional custom selector for payment requirements.
-                Should be a callable that takes (accepts, network_filter, scheme_filter, max_value)
-                and returns a PaymentRequirements object.
-            **kwargs: Additional arguments to pass to AsyncClient
-        """
         hooks = x402_payment_hooks(
-            account, max_value, payment_requirements_selector
+            account,
+            max_value,
+            payment_requirements_selector,
         )
 
         super().__init__(event_hooks=hooks, **kwargs)
