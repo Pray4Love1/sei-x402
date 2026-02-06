@@ -10,7 +10,8 @@ const outputIndex = argv.indexOf("--output");
 const keyIndex = argv.indexOf("--private-key");
 
 const inputPath = inputIndex !== -1 ? argv[inputIndex + 1] : "quote.json";
-const outputPath = outputIndex !== -1 ? argv[outputIndex + 1] : "quote.signed.json";
+const outputPath =
+  outputIndex !== -1 ? argv[outputIndex + 1] : "quote.signed.json";
 const privateKeyPem =
   keyIndex !== -1 ? argv[keyIndex + 1] : process.env.FACILITATOR_PRIVATE_KEY;
 
@@ -25,14 +26,23 @@ if (!outputPath) {
 }
 
 if (!privateKeyPem) {
-  console.error("Missing signing key. Set FACILITATOR_PRIVATE_KEY or pass --private-key.");
+  console.error(
+    "Missing signing key. Set FACILITATOR_PRIVATE_KEY or pass --private-key.",
+  );
   exit(1);
 }
 
-const quote = JSON.parse(readFileSync(inputPath, "utf-8")) as FacilitatorFeeQuote;
+const quote = JSON.parse(
+  readFileSync(inputPath, "utf-8"),
+) as FacilitatorFeeQuote;
 
 const canonicalPayload = getCanonicalQuotePayload(quote);
-const signatureBytes = signMessage(null, Buffer.from(canonicalPayload), createPrivateKey(privateKeyPem));
+
+const signatureBytes = signMessage(
+  null,
+  Buffer.from(canonicalPayload),
+  createPrivateKey(privateKeyPem),
+);
 
 const signedQuote: FacilitatorFeeQuote = {
   ...quote,
