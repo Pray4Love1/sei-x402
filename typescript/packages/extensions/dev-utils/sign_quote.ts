@@ -35,7 +35,7 @@ if (!outputPath) {
 
 if (!privateKeyPem) {
   console.error(
-    "❌ Missing signing key. Set FACILITATOR_PRIVATE_KEY or pass --private-key."
+    "❌ Missing signing key. Set FACILITATOR_PRIVATE_KEY or pass --private-key.",
   );
   exit(1);
 }
@@ -44,16 +44,22 @@ if (!privateKeyPem) {
 // Load, canonicalize, hash, sign
 // ------------------------------------------------------------
 const quote = JSON.parse(
-  readFileSync(inputPath, "utf-8")
+  readFileSync(inputPath, "utf-8"),
 ) as FacilitatorFeeQuote;
 
 const canonicalPayload = getCanonicalQuotePayload(quote);
 
-// RFC: signatures must be computed over canonical JSON hash (sha256)
-const payloadHash = createHash("sha256").update(canonicalPayload).digest();
+// RFC: signatures are computed over canonical JSON hash (sha256)
+const payloadHash = createHash("sha256")
+  .update(canonicalPayload)
+  .digest();
 
-// Explicit algorithm for Ed25519 signing
-const signatureBytes = signMessage("Ed25519", payloadHash, createPrivateKey(privateKeyPem));
+// Explicit Ed25519 signing
+const signatureBytes = signMessage(
+  "Ed25519",
+  payloadHash,
+  createPrivateKey(privateKeyPem),
+);
 
 const signedQuote: FacilitatorFeeQuote = {
   ...quote,
