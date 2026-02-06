@@ -1,0 +1,3 @@
+# Attribution
+
+Aegis Ultra uses x402 protocol terminology and aligns with x402 facilitator semantics.

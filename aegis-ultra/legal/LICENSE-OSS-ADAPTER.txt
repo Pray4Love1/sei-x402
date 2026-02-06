@@ -1,0 +1,3 @@
+# OSS Adapter License
+
+Open-source license for adapter scaffolds used in x402 integrations.
