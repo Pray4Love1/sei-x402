@@ -30,6 +30,9 @@ def build_handoff_bundle(
 ) -> dict[str, Any]:
     account = Account.from_key(private_key)
     header = prepare_payment_header(account.address, x402_version, requirements)
+    header["payload"]["authorization"]["nonce"] = header["payload"]["authorization"][
+        "nonce"
+    ].hex()
     encoded = sign_payment_header(account, requirements, header)
     payload = decode_payment(encoded)
 
