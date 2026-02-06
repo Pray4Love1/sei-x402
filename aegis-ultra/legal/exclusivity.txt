@@ -1,0 +1,3 @@
+# Exclusivity
+
+Exclusivity terms apply to facilitator fee logic and incident response tooling.
