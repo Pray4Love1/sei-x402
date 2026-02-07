@@ -1,0 +1,3 @@
+def main(private field pin, field hash_commit) -> bool:
+    field h = sha256([pin])
+    return h == hash_commit

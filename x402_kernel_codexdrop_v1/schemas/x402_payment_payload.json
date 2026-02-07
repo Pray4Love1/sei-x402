@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "x402 Payment Payload",
+  "type": "object",
+  "required": ["type", "from", "to", "amount", "vault", "sig"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "const": "x402PaymentRequired"
+    },
+    "from": {
+      "type": "string"
+    },
+    "to": {
+      "type": "string"
+    },
+    "amount": {
+      "type": "string"
+    },
+    "vault": {
+      "type": "string"
+    },
+    "zkCommit": {
+      "type": "string"
+    },
+    "relay": {
+      "type": "string"
+    },
+    "sig": {
+      "type": "string"
+    }
+  }
+}

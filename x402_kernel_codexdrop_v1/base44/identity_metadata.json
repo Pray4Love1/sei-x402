@@ -1,0 +1,7 @@
+{
+  "handle": "@sovereign",
+  "vault": "0x0000000000000000000000000000000000000000",
+  "guardian": "Omega",
+  "network": "base-sepolia",
+  "version": "1.0.0"
+}
