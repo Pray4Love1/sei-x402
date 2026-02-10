@@ -61,7 +61,7 @@ def main(argv: list[str]) -> int:
     )
 
     signed = account.sign_transaction(deploy_tx)
-    tx_hash = web3.eth.send_raw_transaction(signed.rawTransaction)
+    tx_hash = web3.eth.send_raw_transaction(signed.raw_transaction)
     receipt = web3.eth.wait_for_transaction_receipt(tx_hash)
 
     print(f"[✓] CodexDropRegistry deployed: {receipt.contractAddress}")
