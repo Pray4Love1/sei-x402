@@ -4,6 +4,10 @@ dist/
 .turbo/
 .next/
 proxy
-.env
 __pycache__/
 **/.DS_Store
+
+offline/operator.key
+
+KinSwarm/offline/operator.key
+KinSwarm/ledger/x402_settlement_log.csv
