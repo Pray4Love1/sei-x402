@@ -23,6 +23,24 @@ It's time for an open, internet-native form of payments. A payment rail that doe
 - **Trust minimizing:** all payment schemes must not allow for the facilitator or resource server to move funds, other than in accordance with client intentions
 - **Easy to use:** x402 needs to be 10x better than existing ways to pay on the internet. This means abstracting as many details of crypto as possible away from the client and resource server, and into the facilitator. This means the client/server should not need to think about gas, rpc, etc.
 
+
+## x402 Native Runtime Kit
+
+This repository includes a first-class x402-native autonomous settlement runtime in `KinSwarm/` (kept under this path for compatibility).
+
+Quick run:
+
+```bash
+./KinSwarm/setup.sh
+./KinSwarm/startup.sh
+```
+
+Standalone simulation:
+
+```bash
+python KinSwarm/simulation/run_simulation.py
+```
+
 ## Ecosystem
 
 The x402 ecosystem is growing! Check out our [ecosystem page](https://x402.org/ecosystem) to see projects building with x402, including:
