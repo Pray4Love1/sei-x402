@@ -25,10 +25,12 @@ def verify_tx(signed_payload: dict, fallback_key: str | None = None) -> bool:
     payload = signed_payload["payload"]
     signature = signed_payload["signature"]
     signer = signed_payload["signer"]
-    payload_str = signed_payload.get(
-        "payload_canonical",
-        json.dumps(payload, separators=(",", ":"), sort_keys=True),
-    )
+    payload_str = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+    caller_payload_canonical = signed_payload.get("payload_canonical")
+    if caller_payload_canonical is not None and not hmac.compare_digest(
+        caller_payload_canonical, payload_str
+    ):
+        return False
 
     scheme = signed_payload.get("scheme", "secp256k1")
 
